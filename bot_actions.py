@@ -98,13 +98,24 @@ async def publish_ticket_panel(bot: Any, guild_id: int, payload: dict[str, Any])
         description=payload.get("description") or "اضغط الزر في الأسفل لفتح تذكرة خاصة بك.",
         color=__import__("spectre_bot_latest").parse_color(payload.get("color") or "blurple"),
     )
-    if payload.get("image_url"):
+    files = []
+    image_path = payload.get("_image_file_path")
+    thumb_path = payload.get("_thumbnail_file_path")
+    if image_path:
+        image_file = discord.File(image_path, filename="spectre-ticket-image.png")
+        files.append(image_file)
+        embed.set_image(url="attachment://spectre-ticket-image.png")
+    elif payload.get("image_url"):
         embed.set_image(url=payload["image_url"])
-    if payload.get("thumbnail_url"):
+    if thumb_path:
+        thumb_file = discord.File(thumb_path, filename="spectre-ticket-thumb.png")
+        files.append(thumb_file)
+        embed.set_thumbnail(url="attachment://spectre-ticket-thumb.png")
+    elif payload.get("thumbnail_url"):
         embed.set_thumbnail(url=payload["thumbnail_url"])
     view = TicketCreateView(emoji, label, style)
     bot.add_view(view)
-    message = await channel.send(embed=embed, view=view)
+    message = await channel.send(embed=embed, view=view, files=files or discord.utils.MISSING)
     return {"message_id": str(message.id), "channel_id": str(channel.id)}
 
 
@@ -180,11 +191,21 @@ async def publish_custom_panel(bot: Any, guild_id: int, payload: dict[str, Any])
     config["content"] = str(config.get("content") or "")[:2000]
     config["buttons"] = [b for b in (config.get("buttons") or []) if isinstance(b, dict)][:25]
     config["fields"] = [f for f in (config.get("fields") or []) if isinstance(f, dict)][:25]
+    files = []
+    image_path = payload.get("_image_file_path")
+    thumb_path = payload.get("_thumbnail_file_path")
+    if image_path:
+        files.append(discord.File(image_path, filename="spectre-panel-image.png"))
+        config["imageUrl"] = "attachment://spectre-panel-image.png"
+    if thumb_path:
+        files.append(discord.File(thumb_path, filename="spectre-panel-thumb.png"))
+        config["thumbnailUrl"] = "attachment://spectre-panel-thumb.png"
     message = await channel.send(
         content=config["content"] or None,
         embed=workflow_embed(config),
         view=build_panel_view(guild.id, config) if config["buttons"] else None,
         allowed_mentions=ALLOWED_MENTIONS,
+        files=files or discord.utils.MISSING,
     )
     db.save_panel(guild.id, channel.id, message.id, json.dumps(config, ensure_ascii=False))
     return {"message_id": str(message.id), "channel_id": str(channel.id)}

@@ -44,9 +44,6 @@ def ensure_opus_loaded() -> str:
 # مصدر البث المباشر الحالي لإذاعة القرآن الكريم السعودية. المصدر المنشور
 # حالياً هو مسار srpksaquranradio، ونُبقي المسار الآخر كـ fallback لأن روابط
 # HLS قد تتبدل أو تتعطل مؤقتاً.
-# المصدر الأساسي منشور من القناة الرسمية لإذاعة القرآن الكريم السعودية.
-# نضعه أولاً لأنه رابط HLS مباشر مناسب لـFFmpeg، ثم نحتفظ بمصادر احتياطية
-# حتى لا تتوقف الإذاعة بالكامل إذا تغير مسار CDN مؤقتاً.
 DEFAULT_QURAN_RADIO_STREAM_URL = "http://m.live.net.sa:1935/live/quransa/playlist.m3u8"
 DEFAULT_QURAN_RADIO_FALLBACK_URLS = [
     DEFAULT_QURAN_RADIO_STREAM_URL,
@@ -159,7 +156,7 @@ class RadioManager:
             "-rw_timeout 15000000 "
             "-reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_on_network_error 1 "
             "-reconnect_on_http_error 4xx,5xx -reconnect_delay_max 5 -thread_queue_size 1024 "
-            "-protocol_whitelist file,http,https,tcp,tls,crypto -http_persistent 1"
+            "-protocol_whitelist file,http,https,tcp,tls,crypto"
         )
         # -af aresample=async=1: يصحّح فجوات التوقيت الصغيرة الناتجة عن الانتقال
         #   بين مقاطع HLS المتتالية (كل مقطع قد يبدأ بفارق طفيف)، وهذا هو السبب
