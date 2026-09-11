@@ -1,0 +1,76 @@
+<div class="tab-title">🛡️ التقديم للإدارة</div>
+<div class="tab-desc">اضبط زر التقديم وانشره — يدعم رفع صورة من رابط للـ Embed.</div>
+
+<div class="card">
+    <h3>قناة مراجعة الطلبات</h3>
+    <div class="field">
+        <label>القناة التي تصل إليها التقديمات الجديدة</label>
+        <select id="review-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}" {% if settings['review_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="saveReviewChannel()">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>نشر زر التقديم</h3>
+    <div class="row">
+        <div class="field">
+            <label>الإيموجي</label>
+            <select id="apply-emoji">
+                <option value="🛠️">🛠️ (افتراضي)</option>
+                {% for emoji in guild['emojis'] %}
+                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label>لون الزر</label>
+            <select id="apply-style">
+                <option value="blurple">بنفسجي</option>
+                <option value="success">أخضر</option>
+                <option value="danger">أحمر</option>
+                <option value="grey">رمادي</option>
+            </select>
+        </div>
+    </div>
+    <div class="field">
+        <label>عنوان الرسالة</label>
+        <input type="text" id="apply-title" value="التقديم للإدارة 🛡️">
+    </div>
+    <div class="field">
+        <label>الوصف</label>
+        <textarea id="apply-desc">هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.</textarea>
+    </div>
+    <div class="field">
+        <label>رابط صورة (اختياري)</label>
+        <input type="text" id="apply-image" placeholder="https://...">
+    </div>
+    <div class="field">
+        <label>القناة</label>
+        <select id="apply-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="publishApplyPanel()">🚀 نشر الآن على ديسكورد</button>
+</div>
+
+<script>
+function saveReviewChannel() {
+    saveSettings({ review_channel_id: document.getElementById("review-channel").value });
+}
+async function publishApplyPanel() {
+    await callAction("apply-panel", {
+        channel_id: document.getElementById("apply-channel").value,
+        emoji: document.getElementById("apply-emoji").value,
+        style: document.getElementById("apply-style").value,
+        title: document.getElementById("apply-title").value,
+        description: document.getElementById("apply-desc").value,
+        image_url: document.getElementById("apply-image").value,
+    });
+}
+</script>

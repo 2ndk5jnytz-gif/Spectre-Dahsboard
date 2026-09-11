@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختر سيرفرك — Spectre</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="page">
+        <div class="page-header">
+            <div class="page-title">👻 اختر السيرفر</div>
+            <div class="user-chip">
+                <img src="{{ session['user']['avatar'] }}" alt="">
+                <span>{{ session['user']['username'] }}</span>
+                <a class="btn btn-ghost" href="{{ url_for('logout') }}" style="padding:8px 16px;">خروج</a>
+            </div>
+        </div>
+
+        {% if api_error %}
+        <div class="empty-state">⚠️ {{ api_error }}<br><small>تأكد أن البوت شغّال وأن DASHBOARD_API_SECRET متطابق بين .env البوت ولوحة التحكم.</small></div>
+        {% elif not guilds %}
+        <div class="empty-state">ما لقيت أي سيرفر تديره وفيه البوت مضاف. تأكد إن البوت منضم للسيرفر وعندك صلاحية "إدارة السيرفر".</div>
+        {% else %}
+        <div class="guild-grid">
+            {% for guild in guilds %}
+            <a class="guild-card" href="{{ url_for('guild_dashboard', guild_id=guild['id']) }}">
+                {% if guild['icon'] %}
+                <img src="{{ guild['icon'] }}" alt="">
+                {% else %}
+                <div class="fallback-icon">{{ guild['name'][0] }}</div>
+                {% endif %}
+                <div class="name">{{ guild['name'] }}</div>
+                <div class="meta">{{ guild['member_count'] }} عضو</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

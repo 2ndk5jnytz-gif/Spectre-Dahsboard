@@ -1,0 +1,276 @@
+<div class="tab-title">🛡️ الحماية من التخريب</div>
+<div class="tab-desc">يراقب البوت الأفعال الخطيرة لحظياً ويتدخل تلقائياً — كل الخيارات هنا تنعكس على البوت فوراً.</div>
+
+<div class="card">
+    <h3>الحالة والعقوبة</h3>
+    <div class="row">
+        <div class="field">
+            <label>تفعيل النظام</label>
+            <select data-key="antinuke_enabled">
+                <option value="1" {% if settings['antinuke_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+                <option value="0" {% if not settings['antinuke_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>ماذا يحدث للفاعل عند اكتشاف تخريب؟</label>
+            <select data-key="antinuke_punishment">
+                <option value="kick" {% if settings['antinuke_punishment']=='kick' %}selected{% endif %}>طرد</option>
+                <option value="ban" {% if settings['antinuke_punishment']=='ban' %}selected{% endif %}>حظر</option>
+                <option value="remove_roles" {% if settings['antinuke_punishment']=='remove_roles' %}selected{% endif %}>سحب كل الرتب</option>
+                <option value="timeout" {% if settings['antinuke_punishment']=='timeout' %}selected{% endif %}>تايم أوت ساعة</option>
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntinukeCore()">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>حدود الاشتباه (متى يُعتبر الفعل "مشبوهاً")</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        مثال: لو ضبطت "الطرد" = 5 و"المدة" = 5 دقائق، فأي عضو يطرد 5 أشخاص أو أكثر
+        خلال 5 دقائق تُطبَّق عليه العقوبة فوراً. هذا يحمي من الاستخدام العادي (أدمن
+        يطرد شخص أو اثنين بمناسبات متفرقة) ويكشف فقط النمط الجماعي السريع.
+    </p>
+    <div class="row">
+        <div class="field"><label>عدد الرومات المُنشأة</label><input type="number" id="an-max-create" min="1" value="{{ settings['antinuke_max_channel_create'] }}"></div>
+        <div class="field"><label>عدد الرومات المحذوفة</label><input type="number" id="an-max-delete" min="1" value="{{ settings['antinuke_max_channel_delete'] }}"></div>
+    </div>
+    <div class="row">
+        <div class="field"><label>عدد الأعضاء المطرودين</label><input type="number" id="an-max-kicks" min="1" value="{{ settings['antinuke_max_kicks'] }}"></div>
+        <div class="field"><label>عدد الأعضاء المحظورين</label><input type="number" id="an-max-bans" min="1" value="{{ settings['antinuke_max_bans'] }}"></div>
+    </div>
+    <div class="row">
+        <div class="field">
+            <label>خلال كم دقيقة؟</label>
+            <input type="number" id="an-window-minutes" min="0.1" step="0.1" value="{{ (settings['antinuke_window_seconds'] / 60) | round(2) }}">
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntinukeThresholds()">💾 حفظ الحدود</button>
+</div>
+
+<div class="card">
+    <h3>كلمات ممنوعة بأسماء الرومات</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        لو حد سوّى روم أو غيّر اسم روم موجود لاسم فيه إحدى هذي الكلمات، يرجّع
+        البوت الاسم القديم فوراً ويعاقب الفاعل.
+    </p>
+    <div class="row">
+        <div class="field"><input type="text" id="an-word-input" placeholder="مثال: نيوك"></div>
+        <button class="btn btn-ghost" onclick="addBannedWord()" style="align-self:flex-end;">➕ إضافة</button>
+    </div>
+    <div id="an-words-list" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;">
+        {% for word in banned_words %}
+        <span class="pill" data-word="{{ word }}">{{ word }} <a href="#" onclick="removeBannedWord('{{ word }}'); return false;" style="color:var(--danger); margin-right:6px;">✕</a></span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h3>الصلاحيات الخطيرة المراقَبة</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        لو رتبة جديدة (أو رتبة مُعدَّلة) صار فيها أي صلاحية مؤشّرة هنا، يحذفها
+        البوت (أو يرجّع صلاحياتها القديمة) فوراً ويعاقب الفاعل.
+    </p>
+    <div id="an-perms-list" style="display:flex; flex-direction:column; gap:8px;">
+        {% for value, label in antinuke_permission_choices %}
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+            <input type="checkbox" class="an-perm-checkbox" value="{{ value }}" {% if value in dangerous_perms %}checked{% endif %} style="width:auto;">
+            {{ label }} <code style="color:var(--text-dim); font-size:.78rem;">{{ value }}</code>
+        </label>
+        {% endfor %}
+    </div>
+    <button class="btn btn-gold" style="margin-top:14px;" onclick="saveDangerousPerms()">💾 حفظ الصلاحيات</button>
+</div>
+
+<div class="card">
+    <h3>استثناء أعضاء (Whitelist)</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        الأعضاء هنا لا يُعاقَبون أبداً حتى لو تجاوزوا الحدود — ضيف كل الأدمن
+        الموثوقين. مالك السيرفر مستثنى دائماً تلقائياً بدون حاجة لإضافته.
+    </p>
+    <div class="row">
+        <div class="field"><input type="text" id="an-whitelist-search" placeholder="اكتب اسم العضو للبحث..." oninput="searchMembersForWhitelist()"></div>
+    </div>
+    <div id="an-whitelist-results" style="margin-top:6px;"></div>
+    <div id="an-whitelist-list" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;">
+        {% for id in whitelist_ids %}
+        <span class="pill" data-id="{{ id }}">{{ id }} <a href="#" onclick="removeWhitelist('{{ id }}'); return false;" style="color:var(--danger); margin-right:6px;">✕</a></span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h3>بوتات موثوقة (تدخل بدون طرد تلقائي)</h3>
+    <div class="row">
+        <div class="field"><input type="text" id="an-bot-id-input" placeholder="آيدي البوت"></div>
+        <button class="btn btn-ghost" onclick="addTrustedBot()" style="align-self:flex-end;">➕ إضافة</button>
+    </div>
+    <div id="an-bots-list" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;">
+        {% for id in bot_whitelist_ids %}
+        <span class="pill" data-id="{{ id }}">{{ id }} <a href="#" onclick="removeTrustedBot('{{ id }}'); return false;" style="color:var(--danger); margin-right:6px;">✕</a></span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h3>🎣 فلتر روابط التصيّد (سكامات نيترو/ستيم المزيفة)</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        البوت عنده قائمة نطاقات تصيّد معروفة مدمجة تلقائياً. لو أي عضو أرسل
+        رابطاً منها، تُحذف الرسالة فوراً (وحسب اختيارك تحته، ممكن أيضاً تايم
+        أوت/طرد/حظر المرسل).
+    </p>
+    <div class="row">
+        <div class="field">
+            <label>الحالة</label>
+            <select data-key="antiphishing_enabled" id="ap-enabled">
+                <option value="1" {% if settings['antiphishing_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+                <option value="0" {% if not settings['antiphishing_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>ماذا يحدث لمن يرسل رابط تصيّد؟</label>
+            <select data-key="antiphishing_action" id="ap-action">
+                <option value="delete" {% if settings['antiphishing_action']=='delete' %}selected{% endif %}>حذف الرسالة فقط</option>
+                <option value="timeout" {% if settings['antiphishing_action']=='timeout' %}selected{% endif %}>حذف + تايم أوت ساعة</option>
+                <option value="kick" {% if settings['antiphishing_action']=='kick' %}selected{% endif %}>حذف + طرد</option>
+                <option value="ban" {% if settings['antiphishing_action']=='ban' %}selected{% endif %}>حذف + حظر</option>
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntiphishingCore()">💾 حفظ</button>
+
+    <div style="margin-top:18px;">
+        <label style="display:block; margin-bottom:6px; font-size:.88rem; color:var(--text-dim);">إضافة نطاق مشبوه إضافي (فوق القائمة المدمجة)</label>
+        <div class="row">
+            <div class="field"><input type="text" id="ap-domain-input" placeholder="مثال: fake-discord-nitro.com"></div>
+            <button class="btn btn-ghost" onclick="addPhishingDomain()" style="align-self:flex-end;">➕ إضافة</button>
+        </div>
+    </div>
+    <div id="ap-domains-list" style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px;">
+        {% for domain in phishing_domains %}
+        <span class="pill" data-domain="{{ domain }}">{{ domain }} <a href="#" onclick="removePhishingDomain('{{ domain }}'); return false;" style="color:var(--danger); margin-right:6px;">✕</a></span>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function saveAntiphishingCore() {
+    saveSettings({
+        antiphishing_enabled: document.getElementById("ap-enabled").value,
+        antiphishing_action: document.getElementById("ap-action").value,
+    });
+}
+async function addPhishingDomain() {
+    const input = document.getElementById("ap-domain-input");
+    const domain = input.value.trim();
+    if (!domain) return;
+    const res = await fetch(`/dashboard/${GUILD_ID}/antiphishing/domains`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ أُضيف النطاق."); input.value = ""; location.reload(); }
+    else showToast("❌ فشل", false);
+}
+async function removePhishingDomain(domain) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/antiphishing/domains`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ تم الحذف."); location.reload(); }
+}
+</script>
+
+<script>
+function saveAntinukeCore() {
+    saveSettings({
+        antinuke_enabled: document.querySelector('[data-key="antinuke_enabled"]').value,
+        antinuke_punishment: document.querySelector('[data-key="antinuke_punishment"]').value,
+    });
+}
+
+function saveAntinukeThresholds() {
+    const minutes = parseFloat(document.getElementById("an-window-minutes").value) || 1;
+    saveSettings({
+        antinuke_max_channel_create: document.getElementById("an-max-create").value,
+        antinuke_max_channel_delete: document.getElementById("an-max-delete").value,
+        antinuke_max_kicks: document.getElementById("an-max-kicks").value,
+        antinuke_max_bans: document.getElementById("an-max-bans").value,
+        antinuke_window_seconds: Math.round(minutes * 60),
+    });
+}
+
+function saveDangerousPerms() {
+    const checked = Array.from(document.querySelectorAll(".an-perm-checkbox:checked")).map(el => el.value);
+    saveSettings({ antinuke_dangerous_perms_json: JSON.stringify(checked) });
+}
+
+async function addBannedWord() {
+    const input = document.getElementById("an-word-input");
+    const word = input.value.trim();
+    if (!word) return;
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/banned-words`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ word }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ أُضيفت الكلمة."); input.value = ""; location.reload(); }
+    else showToast("❌ فشل", false);
+}
+async function removeBannedWord(word) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/banned-words`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ word }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ تم الحذف."); location.reload(); }
+}
+
+let whitelistSearchTimer = null;
+function searchMembersForWhitelist() {
+    clearTimeout(whitelistSearchTimer);
+    const query = document.getElementById("an-whitelist-search").value.trim();
+    const box = document.getElementById("an-whitelist-results");
+    if (!query) { box.innerHTML = ""; return; }
+    whitelistSearchTimer = setTimeout(async () => {
+        const res = await fetch(`/dashboard/${GUILD_ID}/search-members?q=${encodeURIComponent(query)}`);
+        const result = await res.json();
+        const members = (result.members || []);
+        box.innerHTML = members.map(m =>
+            `<div class="card" style="padding:8px 14px; margin-bottom:6px; cursor:pointer;" onclick="addWhitelist('${m.id}')">
+                <img src="${m.avatar}" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;margin-left:8px;">
+                ${m.display_name} (${m.name})
+            </div>`
+        ).join("") || `<div style="color:var(--text-dim);font-size:.85rem;">لا نتائج</div>`;
+    }, 300);
+}
+async function addWhitelist(id) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/whitelist`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kind: "member" }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ استُثني العضو."); location.reload(); }
+}
+async function removeWhitelist(id) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/whitelist`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kind: "member" }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ أُزيل الاستثناء."); location.reload(); }
+}
+async function addTrustedBot() {
+    const input = document.getElementById("an-bot-id-input");
+    const id = input.value.trim();
+    if (!id) return;
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/whitelist`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kind: "bot" }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ صار البوت موثوقاً."); input.value = ""; location.reload(); }
+    else showToast("❌ فشل", false);
+}
+async function removeTrustedBot(id) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/antinuke/whitelist`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kind: "bot" }),
+    });
+    const result = await res.json();
+    if (result.ok) { showToast("✅ أُزيل."); location.reload(); }
+}
+</script>

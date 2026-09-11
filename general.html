@@ -1,0 +1,20 @@
+<div class="tab-title">⚙️ عام</div>
+<div class="tab-desc">إعدادات أساسية للسيرفر — يُحفظ فوراً في قاعدة بيانات البوت.</div>
+
+<div class="card">
+    <h3>البادئة والألوان</h3>
+    <div class="row">
+        <div class="field">
+            <label>بادئة الأوامر</label>
+            <input type="text" data-key="prefix" value="{{ settings['prefix'] }}" maxlength="5">
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="saveGeneral()">💾 حفظ</button>
+</div>
+
+<script>
+function saveGeneral() {
+    const card = document.querySelector('.card');
+    saveSettings(collectForm(card));
+}
+</script>

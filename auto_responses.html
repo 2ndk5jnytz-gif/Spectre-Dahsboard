@@ -1,0 +1,63 @@
+<div class="tab-title">💬 الردود التلقائية</div>
+<div class="tab-desc">عندما يرسل عضو عبارة معينة، يرد البوت تلقائياً. استخدم <code>{user}</code> بالرد لمنشن العضو.</div>
+
+<div class="card">
+    <h3>إضافة رد جديد</h3>
+    <div class="row">
+        <div class="field">
+            <label>نوع المطابقة</label>
+            <select id="ar-match">
+                <option value="exact">تطابق تام (الرسالة = العبارة بالضبط)</option>
+                <option value="contains">تحتوي (العبارة موجودة بأي مكان بالرسالة)</option>
+            </select>
+        </div>
+        <div class="field"><label>العبارة (Trigger)</label><input type="text" id="ar-trigger" placeholder="السلام عليكم"></div>
+    </div>
+    <div class="field">
+        <label>الرد</label>
+        <textarea id="ar-response" placeholder="وعليكم السلام ياهلا فيك يا {user} كيف حالك؟"></textarea>
+    </div>
+    <button class="btn btn-gold" onclick="addAutoResponse()">➕ إضافة</button>
+</div>
+
+<div class="card">
+    <h3>الردود الحالية</h3>
+    <table>
+        <thead><tr><th>#</th><th>النوع</th><th>العبارة</th><th>الرد</th><th></th></tr></thead>
+        <tbody>
+        {% for item in auto_responses %}
+        <tr>
+            <td>{{ item['id'] }}</td>
+            <td>{{ 'يحتوي' if item['match_type'] == 'contains' else 'تطابق تام' }}</td>
+            <td>{{ item['trigger_text'] }}</td>
+            <td>{{ item['response_text'][:40] }}</td>
+            <td><button class="btn btn-danger" style="padding:4px 12px;font-size:.8rem;" onclick="deleteAutoResponse({{ item['id'] }})">حذف</button></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:var(--text-dim);">لا توجد ردود مضافة بعد.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+async function addAutoResponse() {
+    const payload = {
+        match_type: document.getElementById("ar-match").value,
+        trigger: document.getElementById("ar-trigger").value,
+        response: document.getElementById("ar-response").value,
+    };
+    const res = await fetch(`/dashboard/${GUILD_ID}/auto-responses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    const result = await res.json();
+    showToast(result.ok ? "✅ أُضيف، حدّث الصفحة لرؤيته." : "❌ فشل", result.ok);
+}
+async function deleteAutoResponse(id) {
+    const res = await fetch(`/dashboard/${GUILD_ID}/auto-responses/${id}`, { method: "DELETE" });
+    const result = await res.json();
+    showToast(result.ok ? "✅ تم الحذف، حدّث الصفحة." : "❌ فشل", result.ok);
+}
+</script>

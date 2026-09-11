@@ -1,0 +1,64 @@
+<div class="tab-title">🎫 التذاكر</div>
+<div class="tab-desc">اضبط شكل زر التذاكر وانشر لوحة جديدة في أي قناة — تُنشر فوراً على ديسكورد.</div>
+
+<div class="card">
+    <h3>شكل الزر</h3>
+    <div class="row">
+        <div class="field">
+            <label>الإيموجي (من السيرفر أو الهاتف)</label>
+            <select id="ticket-emoji">
+                <option value="🎫" {% if settings['ticket_emoji']=='🎫' %}selected{% endif %}>🎫 (افتراضي)</option>
+                {% for emoji in guild['emojis'] %}
+                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label>نص الزر</label>
+            <input type="text" id="ticket-label" value="{{ settings['ticket_label'] }}">
+        </div>
+        <div class="field">
+            <label>لون الزر</label>
+            <select id="ticket-style">
+                <option value="success" {% if settings['ticket_style']=='success' %}selected{% endif %}>أخضر</option>
+                <option value="blurple" {% if settings['ticket_style']=='blurple' %}selected{% endif %}>بنفسجي</option>
+                <option value="danger" {% if settings['ticket_style']=='danger' %}selected{% endif %}>أحمر</option>
+                <option value="grey" {% if settings['ticket_style']=='grey' %}selected{% endif %}>رمادي</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>نشر لوحة التذاكر</h3>
+    <div class="field">
+        <label>العنوان</label>
+        <input type="text" id="ticket-title" value="مركز المساعدة والدعم">
+    </div>
+    <div class="field">
+        <label>الوصف</label>
+        <textarea id="ticket-desc">اضغط الزر في الأسفل لفتح تذكرة خاصة بك.</textarea>
+    </div>
+    <div class="field">
+        <label>القناة</label>
+        <select id="ticket-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="publishTicketPanel()">🚀 نشر الآن على ديسكورد</button>
+</div>
+
+<script>
+async function publishTicketPanel() {
+    await callAction("ticket-panel", {
+        channel_id: document.getElementById("ticket-channel").value,
+        emoji: document.getElementById("ticket-emoji").value,
+        label: document.getElementById("ticket-label").value,
+        style: document.getElementById("ticket-style").value,
+        title: document.getElementById("ticket-title").value,
+        description: document.getElementById("ticket-desc").value,
+    });
+}
+</script>

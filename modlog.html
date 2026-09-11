@@ -1,0 +1,15 @@
+<div class="tab-title">📋 سجل الإدارة</div>
+<div class="tab-desc">قناة يسجَّل فيها كل طرد/باند/تايم أوت/فتح-إغلاق تذكرة تلقائياً.</div>
+
+<div class="card">
+    <div class="field">
+        <label>قناة اللوق</label>
+        <select data-key="mod_log_channel_id">
+            <option value="">— بدون تسجيل —</option>
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}" {% if settings['mod_log_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="saveSettings(collectForm(document.querySelector('.card')))">💾 حفظ</button>
+</div>

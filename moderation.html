@@ -1,0 +1,32 @@
+<div class="tab-title">🔨 إجراء إداري</div>
+<div class="tab-desc">طرد / حظر / تايم أوت من اللوحة مباشرة — يُسجَّل تلقائياً في قناة اللوق إن كانت مضبوطة.</div>
+
+<div class="card">
+    <div class="row">
+        <div class="field"><label>آيدي العضو</label><input type="text" id="mod-user-id" placeholder="123456789012345678"></div>
+        <div class="field">
+            <label>الإجراء</label>
+            <select id="mod-action">
+                <option value="kick">طرد</option>
+                <option value="ban">حظر</option>
+                <option value="unban">فك حظر</option>
+                <option value="timeout">تايم أوت</option>
+                <option value="untimeout">إلغاء تايم أوت</option>
+            </select>
+        </div>
+        <div class="field" id="minutes-field"><label>المدة (دقائق)</label><input type="number" id="mod-minutes" value="10"></div>
+    </div>
+    <div class="field"><label>السبب</label><input type="text" id="mod-reason" value="بواسطة لوحة التحكم"></div>
+    <button class="btn btn-danger" onclick="doModAction()">تنفيذ الإجراء</button>
+</div>
+
+<script>
+async function doModAction() {
+    await callAction("mod-action", {
+        user_id: document.getElementById("mod-user-id").value,
+        action: document.getElementById("mod-action").value,
+        reason: document.getElementById("mod-reason").value,
+        minutes: parseInt(document.getElementById("mod-minutes").value, 10),
+    });
+}
+</script>

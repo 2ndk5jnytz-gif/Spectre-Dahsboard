@@ -1,0 +1,69 @@
+<div class="tab-title">🎭 الرولات الذاتية</div>
+<div class="tab-desc">أنشئ رسالة، ثم اربط أي إيموجي (من السيرفر أو الهاتف) برتبة معينة.</div>
+
+<div class="card">
+    <h3>1) إنشاء رسالة الرولات</h3>
+    <div class="field"><label>العنوان</label><input type="text" id="rr-title" value="اختر رتبتك"></div>
+    <div class="field"><label>الوصف</label><textarea id="rr-desc">اضغط الإيموجي المناسب لأخذ الرتبة.</textarea></div>
+    <div class="field">
+        <label>القناة</label>
+        <select id="rr-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="createRRMessage()">🚀 إنشاء الرسالة</button>
+    <p id="rr-message-id" style="color:var(--text-dim); margin-top:10px;"></p>
+</div>
+
+<div class="card">
+    <h3>2) ربط إيموجي برتبة</h3>
+    <div class="row">
+        <div class="field">
+            <label>معرّف الرسالة (Message ID)</label>
+            <input type="text" id="rr-target-message" placeholder="يُملأ تلقائياً بعد الإنشاء أو الصقه يدوياً">
+        </div>
+        <div class="field">
+            <label>الإيموجي</label>
+            <select id="rr-emoji">
+                {% for emoji in guild['emojis'] %}
+                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
+                {% endfor %}
+                <option value="✅">✅</option>
+                <option value="⭐">⭐</option>
+                <option value="🔥">🔥</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>الرتبة</label>
+            <select id="rr-role">
+                {% for role in guild['roles'] %}
+                <option value="{{ role['id'] }}">{{ role['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="linkRR()">🔗 ربط الآن</button>
+</div>
+
+<script>
+async function createRRMessage() {
+    const result = await callAction("reaction-role-message", {
+        channel_id: document.getElementById("rr-channel").value,
+        title: document.getElementById("rr-title").value,
+        description: document.getElementById("rr-desc").value,
+    });
+    if (result && result.ok) {
+        document.getElementById("rr-target-message").value = result.message_id;
+        document.getElementById("rr-message-id").textContent = "معرّف الرسالة: " + result.message_id;
+    }
+}
+async function linkRR() {
+    await callAction("reaction-role-link", {
+        message_id: document.getElementById("rr-target-message").value,
+        emoji: document.getElementById("rr-emoji").value,
+        role_id: document.getElementById("rr-role").value,
+    });
+}
+</script>

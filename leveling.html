@@ -1,0 +1,101 @@
+<div class="tab-title">🏆 اللفلات والخبرة</div>
+<div class="tab-desc">رتب اللفلات، وتعديل/نقل خبرة أي عضو يدوياً.</div>
+
+<div class="card">
+    <h3>تفعيل نظام اللفلات</h3>
+    <div class="row">
+        <div class="field">
+            <label>الحالة</label>
+            <select id="levels-enabled">
+                <option value="1" {% if settings['levels_enabled'] %}selected{% endif %}>مفعّل</option>
+                <option value="0" {% if not settings['levels_enabled'] %}selected{% endif %}>معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>قناة إعلان الترقية</label>
+            <select id="level-up-channel">
+                {% for channel in guild['channels'] %}
+                <option value="{{ channel['id'] }}" {% if settings['level_up_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-gold" onclick="saveLevelSettings()">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>رتب اللفلات</h3>
+    <table>
+        <thead><tr><th>اللفل</th><th>الرتبة</th></tr></thead>
+        <tbody>
+        {% for level, role_id in level_roles %}
+            <tr><td>{{ level }}</td><td>
+                {% for role in guild['roles'] %}{% if role['id'] == role_id|string %}{{ role['name'] }}{% endif %}{% endfor %}
+            </td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="row" style="margin-top:16px;">
+        <div class="field"><label>اللفل</label><input type="number" id="new-level" min="1" value="5"></div>
+        <div class="field">
+            <label>الرتبة</label>
+            <select id="new-level-role">
+                {% for role in guild['roles'] %}
+                <option value="{{ role['id'] }}">{{ role['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <button class="btn btn-ghost" onclick="addLevelRole()">➕ إضافة</button>
+</div>
+
+<div class="card">
+    <h3>تعديل خبرة عضو</h3>
+    <div class="row">
+        <div class="field"><label>آيدي العضو</label><input type="text" id="xp-user-id" placeholder="123456789012345678"></div>
+        <div class="field"><label>الكمية (سالب للنقصان)</label><input type="number" id="xp-amount" value="100"></div>
+    </div>
+    <button class="btn btn-gold" onclick="adjustXp()">تنفيذ</button>
+</div>
+
+<div class="card">
+    <h3>نقل خبرة (حساب محظور ⇦ حساب جديد)</h3>
+    <div class="row">
+        <div class="field"><label>آيدي الحساب القديم</label><input type="text" id="xp-old-id" placeholder="آيدي الحساب المحظور"></div>
+        <div class="field"><label>آيدي الحساب الجديد</label><input type="text" id="xp-new-id" placeholder="آيدي الحساب الجديد"></div>
+    </div>
+    <button class="btn btn-gold" onclick="transferXp()">نقل الخبرة الآن</button>
+</div>
+
+<script>
+function saveLevelSettings() {
+    saveSettings({
+        levels_enabled: document.getElementById("levels-enabled").value,
+        level_up_channel_id: document.getElementById("level-up-channel").value,
+    });
+}
+async function addLevelRole() {
+    const response = await fetch(`/dashboard/${GUILD_ID}/level-roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            level: document.getElementById("new-level").value,
+            role_id: document.getElementById("new-level-role").value,
+        }),
+    });
+    const result = await response.json();
+    showToast(result.ok ? "✅ تمت الإضافة، حدّث الصفحة لرؤيتها." : "❌ فشل", result.ok);
+}
+async function adjustXp() {
+    await callAction("xp-adjust", {
+        user_id: document.getElementById("xp-user-id").value,
+        amount: parseInt(document.getElementById("xp-amount").value, 10),
+    });
+}
+async function transferXp() {
+    await callAction("xp-transfer", {
+        old_user_id: document.getElementById("xp-old-id").value,
+        new_user_id: document.getElementById("xp-new-id").value,
+    });
+}
+</script>

@@ -1,0 +1,129 @@
+<div class="tab-title">🚨 الحماية المتقدمة</div>
+<div class="tab-desc">ميزات مستوحاة من أشهر بوتات الحماية (Wick, Dyno, Vexera) — كل شيء هنا يُحفظ فوراً ويطبَّق على البوت مباشرة.</div>
+
+<div class="card">
+    <h3>🚨 الحماية من الغارات الجماعية (Anti-Raid)</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        لو انضم عدد كبير من الأعضاء خلال ثوانٍ قليلة (نمط غارة)، يرفع البوت
+        مستوى التحقق بالسيرفر للحد الأقصى تلقائياً لفترة، ويطبّق الإجراء الذي
+        تختاره على كل من انضم أثناء الغارة.
+    </p>
+    <div class="row">
+        <div class="field">
+            <label>الحالة</label>
+            <select data-key="antiraid_enabled">
+                <option value="1" {% if settings['antiraid_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+                <option value="0" {% if not settings['antiraid_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>ماذا يحدث للمنضمين أثناء الغارة؟</label>
+            <select data-key="antiraid_action">
+                <option value="kick_new" {% if settings['antiraid_action']=='kick_new' %}selected{% endif %}>طردهم</option>
+                <option value="ban_new" {% if settings['antiraid_action']=='ban_new' %}selected{% endif %}>حظرهم</option>
+                <option value="lockdown_only" {% if settings['antiraid_action']=='lockdown_only' %}selected{% endif %}>قفل السيرفر فقط بدون طرد أحد</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="field"><label>عدد الأعضاء (حد الغارة)</label><input type="number" id="raid-max-joins" min="3" value="{{ settings['antiraid_max_joins'] }}"></div>
+        <div class="field"><label>خلال كم ثانية؟</label><input type="number" id="raid-window" min="5" value="{{ settings['antiraid_window_seconds'] }}"></div>
+        <div class="field"><label>مدة القفل (دقائق)</label><input type="number" id="raid-lockdown" min="1" value="{{ settings['antiraid_lockdown_minutes'] }}"></div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntiraid()">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>👤 حظر الحسابات الحديثة جداً (Anti-Alt)</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        يمنع الحسابات المُنشأة حديثاً جداً بديسكورد نفسه (وليس تاريخ انضمامها
+        للسيرفر) — يوقف أغلب الحسابات المزيفة المصنوعة للتحايل أو الهجمات المنظّمة.
+    </p>
+    <div class="row">
+        <div class="field">
+            <label>الحالة</label>
+            <select data-key="antialt_enabled">
+                <option value="1" {% if settings['antialt_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+                <option value="0" {% if not settings['antialt_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>الإجراء</label>
+            <select data-key="antialt_action">
+                <option value="kick" {% if settings['antialt_action']=='kick' %}selected{% endif %}>طرد</option>
+                <option value="ban" {% if settings['antialt_action']=='ban' %}selected{% endif %}>حظر</option>
+            </select>
+        </div>
+        <div class="field"><label>أقل عمر حساب مسموح (أيام)</label><input type="number" id="alt-min-age" min="0" value="{{ settings['antialt_min_age_days'] }}"></div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntialt()">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>📌 الرتب اللاصقة (Sticky Roles)</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        لو عضو مُعاقَب (مثلاً رتبة كتم) غادر السيرفر ورجع، تُعاد له نفس رتبه
+        القديمة تلقائياً — يمنع "الهروب" من العقوبة بالخروج والعودة.
+    </p>
+    <div class="field">
+        <label>الحالة</label>
+        <select data-key="sticky_roles_enabled" id="sticky-enabled">
+            <option value="1" {% if settings['sticky_roles_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+            <option value="0" {% if not settings['sticky_roles_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="saveSettings({sticky_roles_enabled: document.getElementById('sticky-enabled').value})">💾 حفظ</button>
+</div>
+
+<div class="card">
+    <h3>🚫 الحماية من سبام المنشن الجماعي</h3>
+    <p style="color:var(--text-dim); font-size:.88rem; margin-top:-8px;">
+        رسالة واحدة تمنشن عدداً كبيراً من الأعضاء/الرتب دفعة وحدة غالباً محاولة
+        إزعاج متعمدة — تُحذف تلقائياً مع عقاب المرسل حسب اختيارك.
+    </p>
+    <div class="row">
+        <div class="field">
+            <label>الحالة</label>
+            <select data-key="antispam_mention_enabled">
+                <option value="1" {% if settings['antispam_mention_enabled'] %}selected{% endif %}>🟢 مفعّل</option>
+                <option value="0" {% if not settings['antispam_mention_enabled'] %}selected{% endif %}>🔴 معطّل</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>الإجراء</label>
+            <select data-key="antispam_action">
+                <option value="delete_only" {% if settings['antispam_action']=='delete_only' %}selected{% endif %}>حذف الرسالة فقط</option>
+                <option value="timeout" {% if settings['antispam_action']=='timeout' %}selected{% endif %}>حذف + تايم أوت</option>
+                <option value="kick" {% if settings['antispam_action']=='kick' %}selected{% endif %}>حذف + طرد</option>
+            </select>
+        </div>
+        <div class="field"><label>الحد الأقصى للمنشن بالرسالة</label><input type="number" id="mention-max" min="2" value="{{ settings['antispam_max_mentions'] }}"></div>
+    </div>
+    <button class="btn btn-gold" onclick="saveAntispamMention()">💾 حفظ</button>
+</div>
+
+<script>
+function saveAntiraid() {
+    saveSettings({
+        antiraid_enabled: document.querySelector('[data-key="antiraid_enabled"]').value,
+        antiraid_action: document.querySelector('[data-key="antiraid_action"]').value,
+        antiraid_max_joins: document.getElementById("raid-max-joins").value,
+        antiraid_window_seconds: document.getElementById("raid-window").value,
+        antiraid_lockdown_minutes: document.getElementById("raid-lockdown").value,
+    });
+}
+function saveAntialt() {
+    saveSettings({
+        antialt_enabled: document.querySelector('[data-key="antialt_enabled"]').value,
+        antialt_action: document.querySelector('[data-key="antialt_action"]').value,
+        antialt_min_age_days: document.getElementById("alt-min-age").value,
+    });
+}
+function saveAntispamMention() {
+    saveSettings({
+        antispam_mention_enabled: document.querySelector('[data-key="antispam_mention_enabled"]').value,
+        antispam_action: document.querySelector('[data-key="antispam_action"]').value,
+        antispam_max_mentions: document.getElementById("mention-max").value,
+    });
+}
+</script>
