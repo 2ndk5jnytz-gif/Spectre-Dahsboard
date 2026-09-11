@@ -4,11 +4,11 @@
 # يدوياً على استضافة بعنوان IP مباشر.
 services:
   - type: web
-    name: spectre-dashboard
+    name: spectre-dahsboard
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 render_dashboard.py
+    startCommand: python start_latest.py
     envVars:
       - key: DISCORD_TOKEN
         sync: false

@@ -1,76 +1,29 @@
-<div class="tab-title">🛡️ التقديم للإدارة</div>
-<div class="tab-desc">اضبط زر التقديم وانشره — يدعم رفع صورة من رابط للـ Embed.</div>
+<div class="page-intro">
+  <div><div class="eyebrow">APPLICATIONS</div><div class="tab-title">📝 مركز التقديمات</div><div class="tab-desc">حوّل التقديم من زر بسيط إلى نموذج منظم يصل إلى طابور مراجعة واضح.</div></div>
+  <span class="live-indicator"><i></i> Review Queue</span>
+</div>
 
-<div class="card">
-    <h3>قناة مراجعة الطلبات</h3>
-    <div class="field">
-        <label>القناة التي تصل إليها التقديمات الجديدة</label>
-        <select id="review-channel">
-            {% for channel in guild['channels'] %}
-            <option value="{{ channel['id'] }}" {% if settings['review_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <button class="btn btn-gold" onclick="saveReviewChannel()">💾 حفظ</button>
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon">📝</div><div><div class="stat-label">النماذج</div><div class="stat-value">1</div></div></div>
+  <div class="stat-card"><div class="stat-icon">❓</div><div><div class="stat-label">أسئلة النموذج</div><div class="stat-value">5</div></div></div>
+  <div class="stat-card"><div class="stat-icon">⏳</div><div><div class="stat-label">المراجعة</div><div class="stat-value" style="font-size:1rem">طابور</div></div></div>
+  <div class="stat-card"><div class="stat-icon">⚡</div><div><div class="stat-label">القرار</div><div class="stat-value" style="font-size:1rem">قبول / رفض</div></div></div>
 </div>
 
 <div class="card">
-    <h3>نشر زر التقديم</h3>
-    <div class="row">
-        <div class="field">
-            <label>الإيموجي</label>
-            <select id="apply-emoji">
-                <option value="🛠️">🛠️ (افتراضي)</option>
-                {% for emoji in guild['emojis'] %}
-                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label>لون الزر</label>
-            <select id="apply-style">
-                <option value="blurple">بنفسجي</option>
-                <option value="success">أخضر</option>
-                <option value="danger">أحمر</option>
-                <option value="grey">رمادي</option>
-            </select>
-        </div>
-    </div>
-    <div class="field">
-        <label>عنوان الرسالة</label>
-        <input type="text" id="apply-title" value="التقديم للإدارة 🛡️">
-    </div>
-    <div class="field">
-        <label>الوصف</label>
-        <textarea id="apply-desc">هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.</textarea>
-    </div>
-    <div class="field">
-        <label>رابط صورة (اختياري)</label>
-        <input type="text" id="apply-image" placeholder="https://...">
-    </div>
-    <div class="field">
-        <label>القناة</label>
-        <select id="apply-channel">
-            {% for channel in guild['channels'] %}
-            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <button class="btn btn-gold" onclick="publishApplyPanel()">🚀 نشر الآن على ديسكورد</button>
+  <div class="card-title-row"><div><h3>مسار الطلب</h3><small>Member → Form → Review Queue → Decision</small></div><span class="mini-tag">WORKFLOW</span></div>
+  <div class="workflow-steps"><div class="step active"><b>01</b><span>النموذج</span></div><i>←</i><div class="step active"><b>02</b><span>طابور المراجعة</span></div><i>←</i><div class="step active"><b>03</b><span>قرار الإدارة</span></div></div>
 </div>
 
-<script>
-function saveReviewChannel() {
-    saveSettings({ review_channel_id: document.getElementById("review-channel").value });
-}
-async function publishApplyPanel() {
-    await callAction("apply-panel", {
-        channel_id: document.getElementById("apply-channel").value,
-        emoji: document.getElementById("apply-emoji").value,
-        style: document.getElementById("apply-style").value,
-        title: document.getElementById("apply-title").value,
-        description: document.getElementById("apply-desc").value,
-        image_url: document.getElementById("apply-image").value,
-    });
-}
-</script>
+<div class="card">
+  <div class="card-title-row"><div><h3>قناة المراجعة</h3><small>كل طلب جديد يصل هنا مع أزرار القبول والرفض.</small></div></div>
+  <div class="field"><label>القناة</label><select id="review-channel">{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}" {% if settings['review_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>{% endfor %}</select></div>
+  <button class="btn btn-gold" onclick="saveReviewChannel()">💾 حفظ القناة</button>
+</div>
+
+<div class="card">
+  <div class="card-title-row"><div><h3>لوحة التقديم</h3><small>يمكنك تصميم الرسالة والأزرار من Workflow Studio، ثم جعل الزر يفتح نموذجًا.</small></div><a class="btn btn-ghost btn-sm" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">فتح المحرر</a></div>
+  <div class="row"><div class="field"><label>عنوان الرسالة</label><input id="apply-title" value="التقديم للإدارة 🛡️"></div><div class="field"><label>الوصف</label><textarea id="apply-desc">اضغط الزر لفتح نموذج التقديم وإرسال إجاباتك للإدارة.</textarea></div></div>
+  <div class="hint-box">💡 تصميم Vetox الذي نقتبس منه هنا يفصل بين <b>التقديم</b> و<b>التذكرة</b>: التقديم إجابات ثابتة وقرار، بينما التذكرة محادثة مفتوحة.</div>
+</div>
+<script>function saveReviewChannel(){saveSettings({review_channel_id:document.getElementById('review-channel').value});}</script>

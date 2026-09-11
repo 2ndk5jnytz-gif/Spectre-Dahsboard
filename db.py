@@ -279,6 +279,25 @@ def init_db() -> None:
 
             -- المسابقات (Giveaways): كل سطر يمثل مسابقة واحدة منشورة، تُفحص
             -- دورياً (كل دقيقة) لمعرفة أي مسابقة انتهى وقتها لسحب الفائزين.
+            CREATE TABLE IF NOT EXISTS dashboard_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                actor_id INTEGER,
+                action TEXT NOT NULL,
+                target TEXT NOT NULL DEFAULT '',
+                details_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_dashboard_audit_guild ON dashboard_audit (guild_id, id DESC);
+
+            CREATE TABLE IF NOT EXISTS command_settings (
+                guild_id INTEGER NOT NULL,
+                command_name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, command_name)
+            );
+
             CREATE TABLE IF NOT EXISTS giveaways (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -294,6 +313,53 @@ def init_db() -> None:
             """
         )
 
+
+
+def set_command_enabled(guild_id: int, command_name: str, enabled: bool) -> None:
+    name = str(command_name).strip().lower()[:100]
+    if not name:
+        raise ValueError("اسم الأمر غير صالح")
+    with _connect() as connection:
+        connection.execute(
+            "INSERT INTO command_settings (guild_id, command_name, enabled, updated_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(guild_id, command_name) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at",
+            (guild_id, name, 1 if enabled else 0, datetime.now(timezone.utc).isoformat()),
+        )
+
+def is_command_enabled(guild_id: int, command_name: str) -> bool:
+    with _connect() as connection:
+        row = connection.execute(
+            "SELECT enabled FROM command_settings WHERE guild_id=? AND command_name=?",
+            (guild_id, str(command_name).strip().lower()),
+        ).fetchone()
+    return True if row is None else bool(row["enabled"])
+
+def get_disabled_commands(guild_id: int) -> set[str]:
+    with _connect() as connection:
+        rows = connection.execute("SELECT command_name FROM command_settings WHERE guild_id=? AND enabled=0", (guild_id,)).fetchall()
+    return {str(row["command_name"]).lower() for row in rows}
+
+def add_dashboard_audit(guild_id: int, actor_id: int | None, action: str, target: str = "", details: dict[str, Any] | None = None) -> None:
+    with _connect() as connection:
+        connection.execute(
+            "INSERT INTO dashboard_audit (guild_id, actor_id, action, target, details_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (guild_id, actor_id, str(action)[:120], str(target)[:200], json.dumps(details or {}, ensure_ascii=False)[:4000], datetime.now(timezone.utc).isoformat()),
+        )
+
+def get_dashboard_audit(guild_id: int, limit: int = 30) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit), 100))
+    with _connect() as connection:
+        rows = connection.execute(
+            "SELECT id, actor_id, action, target, details_json, created_at FROM dashboard_audit WHERE guild_id=? ORDER BY id DESC LIMIT ?",
+            (guild_id, limit),
+        ).fetchall()
+    result=[]
+    for row in rows:
+        item=dict(row)
+        try: item["details"]=json.loads(item.pop("details_json") or "{}")
+        except Exception: item["details"]={}
+        result.append(item)
+    return result
 
 def set_presence_config(messages: list[str], interval_seconds: int) -> None:
     cleaned = [str(message).strip()[:128] for message in messages if str(message).strip()]

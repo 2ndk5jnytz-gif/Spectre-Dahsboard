@@ -49,6 +49,15 @@ _bot_instance: Any = None
 _bot_loop: asyncio.AbstractEventLoop | None = None
 
 
+@app.after_request
+def _security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
+
+
 def call_bot(coro):
     """يرسل Coroutine لحلقة أحداث البوت من خيط Flask المنفصل، وينتظر النتيجة."""
     if _bot_instance is None or _bot_loop is None:
@@ -128,6 +137,7 @@ def callback():
         guild["id"] for guild in guilds_response.json() if (int(guild.get("permissions", 0)) & MANAGE_GUILD) == MANAGE_GUILD
     ]
 
+    session["user_id"] = str(user["id"])
     session["user"] = {
         "id": user["id"],
         "username": user.get("global_name") or user["username"],
@@ -179,19 +189,21 @@ async def _guild_overview_coro(guild_id: int):
 
 
 TABS = [
-    ("الرئيسية", "home"),
-    ("عام", "general"),
-    ("التذاكر", "tickets"),
-    ("التقديم للإدارة", "applications"),
-    ("اللفلات والخبرة", "leveling"),
-    ("الترحيب", "welcome"),
-    ("سجل الإدارة", "modlog"),
-    ("الرولات الذاتية", "reaction_roles"),
-    ("الردود التلقائية", "auto_responses"),
-    ("إجراء إداري", "moderation"),
-    ("الحماية من التخريب", "antinuke"),
-    ("الحماية المتقدمة", "advanced_security"),
-    ("لوحة النجوم والمسابقات", "extras"),
+    ("الرئيسية", "home"), ("عام", "general"), ("الأوامر", "commands"),
+    ("التذاكر", "tickets"), ("التقديمات", "applications"),
+    ("منشئ اللوحات", "panel_builder"), ("منشئ Embed", "embed_builder"),
+    ("اللفلات والخبرة", "leveling"), ("الترحيب", "welcome"),
+    ("الرولات الذاتية", "reaction_roles"), ("الردود التلقائية", "auto_responses"),
+    ("الإشراف", "moderation"), ("سجل الإدارة", "modlog"),
+    ("الحماية من التخريب", "antinuke"), ("الحماية المتقدمة", "advanced_security"),
+    ("النجوم والمسابقات", "extras"),
+]
+
+NAV_GROUPS = [
+    ("نظرة عامة", [("🏠", "الرئيسية", "home"), ("⚙️", "إعدادات السيرفر", "general"), ("⌘", "الأوامر", "commands")]),
+    ("الدعم والتواصل", [("🎫", "التذاكر", "tickets"), ("📝", "التقديمات", "applications"), ("🧩", "منشئ اللوحات", "panel_builder"), ("✦", "منشئ Embed", "embed_builder")]),
+    ("المجتمع", [("🏆", "اللفلات والخبرة", "leveling"), ("👋", "الترحيب", "welcome"), ("🎭", "الرولات الذاتية", "reaction_roles"), ("💬", "الردود التلقائية", "auto_responses"), ("⭐", "النجوم والمسابقات", "extras")]),
+    ("الإدارة والحماية", [("🔨", "الإشراف", "moderation"), ("📋", "سجل الإدارة", "modlog"), ("🛡️", "الحماية من التخريب", "antinuke"), ("🚨", "الحماية المتقدمة", "advanced_security")]),
 ]
 
 ANTINUKE_PERMISSION_CHOICES = [
@@ -216,7 +228,14 @@ def guild_dashboard(guild_id: str, tab: str = "general"):
     if overview is None:
         return redirect(url_for("guild_picker"))
     settings = db.get_guild_settings(int(guild_id))
-    context = {"guild": overview, "guild_id": guild_id, "tabs": TABS, "active_tab": tab, "settings": settings}
+    context = {"guild": overview, "guild_id": guild_id, "tabs": TABS, "nav_groups": NAV_GROUPS, "active_tab": tab, "settings": settings}
+    context["audit_log"] = db.get_dashboard_audit(int(guild_id), 20)
+    if tab == "commands":
+        commands_list = bot_actions.list_commands(_bot_instance)
+        disabled = db.get_disabled_commands(int(guild_id))
+        for item in commands_list:
+            item["enabled"] = item["name"].lower() not in disabled
+        context["commands_list"] = commands_list
     if tab == "leveling":
         context["level_roles"] = db.get_level_roles(int(guild_id))
     if tab == "auto_responses":
@@ -248,7 +267,28 @@ def save_settings(guild_id: str):
         if key in allowed_keys:
             db.set_guild_setting(int(guild_id), key, value)
             saved.append(key)
+    db.add_dashboard_audit(int(guild_id), session.get("user_id"), "settings.save", "guild_settings", {"keys": saved})
     return jsonify({"ok": True, "saved": saved})
+
+
+@app.route("/dashboard/<guild_id>/commands/<command_name>", methods=["POST"])
+@login_required
+def toggle_command(guild_id: str, command_name: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    payload = request.get_json(force=True)
+    enabled = bool(payload.get("enabled", True))
+    db.set_command_enabled(int(guild_id), command_name, enabled)
+    db.add_dashboard_audit(int(guild_id), session.get("user_id"), "command.toggle", command_name, {"enabled": enabled})
+    return jsonify({"ok": True, "enabled": enabled})
+
+
+@app.route("/dashboard/<guild_id>/audit")
+@login_required
+def dashboard_audit(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    return jsonify({"ok": True, "items": db.get_dashboard_audit(int(guild_id), 50)})
 
 
 @app.route("/dashboard/<guild_id>/level-roles", methods=["POST"])
@@ -401,6 +441,7 @@ _ACTION_COROUTINES = {
     "ticket-panel": bot_actions.publish_ticket_panel,
     "apply-panel": bot_actions.publish_apply_panel,
     "embed": bot_actions.send_embed,
+    "custom-panel": bot_actions.publish_custom_panel,
     "reaction-role-message": bot_actions.create_reaction_role_message,
     "reaction-role-link": bot_actions.link_reaction_role,
     "xp-adjust": bot_actions.adjust_xp,

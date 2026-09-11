@@ -1,64 +1,36 @@
-<div class="tab-title">🎫 التذاكر</div>
-<div class="tab-desc">اضبط شكل زر التذاكر وانشر لوحة جديدة في أي قناة — تُنشر فوراً على ديسكورد.</div>
+<div class="page-intro">
+  <div><div class="eyebrow">SUPPORT DESK</div><div class="tab-title">🎫 مكتب التذاكر</div><div class="tab-desc">ابنِ لوحات دعم متعددة، وكل خيار يمكن أن يذهب إلى قسم ورتبة دعم مختلفة.</div></div>
+  <a class="btn btn-gold" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">＋ إنشاء لوحة</a>
+</div>
 
-<div class="card">
-    <h3>شكل الزر</h3>
-    <div class="row">
-        <div class="field">
-            <label>الإيموجي (من السيرفر أو الهاتف)</label>
-            <select id="ticket-emoji">
-                <option value="🎫" {% if settings['ticket_emoji']=='🎫' %}selected{% endif %}>🎫 (افتراضي)</option>
-                {% for emoji in guild['emojis'] %}
-                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label>نص الزر</label>
-            <input type="text" id="ticket-label" value="{{ settings['ticket_label'] }}">
-        </div>
-        <div class="field">
-            <label>لون الزر</label>
-            <select id="ticket-style">
-                <option value="success" {% if settings['ticket_style']=='success' %}selected{% endif %}>أخضر</option>
-                <option value="blurple" {% if settings['ticket_style']=='blurple' %}selected{% endif %}>بنفسجي</option>
-                <option value="danger" {% if settings['ticket_style']=='danger' %}selected{% endif %}>أحمر</option>
-                <option value="grey" {% if settings['ticket_style']=='grey' %}selected{% endif %}>رمادي</option>
-            </select>
-        </div>
-    </div>
+<div class="stats-grid support-stats">
+  <div class="stat-card"><div class="stat-icon">▣</div><div><div class="stat-label">لوحات الدعم</div><div class="stat-value">3+</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🙋</div><div><div class="stat-label">استلام التذكرة</div><div class="stat-value" style="font-size:1rem">مفعّل</div></div></div>
+  <div class="stat-card"><div class="stat-icon">📄</div><div><div class="stat-label">Transcript</div><div class="stat-value" style="font-size:1rem">تلقائي</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🔒</div><div><div class="stat-label">تذكرة لكل عضو</div><div class="stat-value" style="font-size:1rem">1 مفتوحة</div></div></div>
 </div>
 
 <div class="card">
-    <h3>نشر لوحة التذاكر</h3>
-    <div class="field">
-        <label>العنوان</label>
-        <input type="text" id="ticket-title" value="مركز المساعدة والدعم">
-    </div>
-    <div class="field">
-        <label>الوصف</label>
-        <textarea id="ticket-desc">اضغط الزر في الأسفل لفتح تذكرة خاصة بك.</textarea>
-    </div>
-    <div class="field">
-        <label>القناة</label>
-        <select id="ticket-channel">
-            {% for channel in guild['channels'] %}
-            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <button class="btn btn-gold" onclick="publishTicketPanel()">🚀 نشر الآن على ديسكورد</button>
+  <div class="card-title-row"><div><h3>لوحة الدعم الرئيسية</h3><small>الطريقة الجديدة في Spectre: اللوحة تحتوي خيارات، وكل خيار يملك إعداداته.</small></div><span class="mini-tag">WORKFLOW</span></div>
+  <div class="workflow-option-grid">
+    <div class="workflow-option"><div class="workflow-option-icon">🎫</div><div><b>دعم عام</b><small>قسم الدعم العام · فريق الدعم</small></div><span class="status-pill enabled">جاهز</span></div>
+    <div class="workflow-option"><div class="workflow-option-icon">🚨</div><div><b>بلاغ</b><small>قسم البلاغات · المشرفون</small></div><span class="status-pill enabled">جاهز</span></div>
+    <div class="workflow-option"><div class="workflow-option-icon">💳</div><div><b>مشتريات</b><small>قسم المبيعات · فريق المتجر</small></div><span class="status-pill draft">مسودة</span></div>
+  </div>
 </div>
 
-<script>
-async function publishTicketPanel() {
-    await callAction("ticket-panel", {
-        channel_id: document.getElementById("ticket-channel").value,
-        emoji: document.getElementById("ticket-emoji").value,
-        label: document.getElementById("ticket-label").value,
-        style: document.getElementById("ticket-style").value,
-        title: document.getElementById("ticket-title").value,
-        description: document.getElementById("ticket-desc").value,
-    });
-}
-</script>
+<div class="card">
+  <div class="card-title-row"><div><h3>الإعدادات العامة</h3><small>إعدادات افتراضية للتذاكر التي تُنشأ من اللوحات.</small></div></div>
+  <div class="row">
+    <div class="field"><label>قسم التذاكر الافتراضي</label><select id="ticket-category"><option value="">استخدم إعداد اللوحة</option>{% for category in guild['categories'] %}<option value="{{ category['id'] }}">{{ category['name'] }}</option>{% endfor %}</select></div>
+    <div class="field"><label>اسم التذكرة</label><input id="ticket-prefix" value="ticket" maxlength="20"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>قناة السجلات</label><select id="ticket-log"><option value="">اختر قناة من السجلات</option>{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>{% endfor %}</select></div>
+    <div class="field"><label>سلوك الإغلاق</label><select id="ticket-close"><option>Transcript ثم حذف</option><option>Transcript فقط</option><option>إغلاق بدون حذف</option></select></div>
+  </div>
+  <button class="btn btn-gold" onclick="saveTicketDefaults()">💾 حفظ الإعدادات</button>
+</div>
+
+<div class="card info-card"><h3>🧩 محرر اللوحات المتقدم</h3><p>بدلاً من لوحة بزر واحد، استخدم Workflow Studio لإنشاء عدة خيارات داخل نفس الرسالة. لكل خيار: وظيفة، إيموجي، لون، رتبة دعم، قسم، رسالة افتتاح، وإعدادات الإغلاق.</p><a class="inline-link" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">فتح Workflow Studio ←</a></div>
+<script>async function saveTicketDefaults(){await saveSettings({ticket_category_id:document.getElementById('ticket-category').value||null,mod_log_channel_id:document.getElementById('ticket-log').value||null});}</script>

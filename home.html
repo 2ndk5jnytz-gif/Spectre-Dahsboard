@@ -1,27 +1,19 @@
-<div class="dashboard-hero">
-    <div>
-        <div class="eyebrow">SPECTRE CONTROL CENTER</div>
-        <div class="tab-title">مرحباً بك في لوحة {{ guild["name"] }} 👻</div>
-        <div class="tab-desc">تحكم بإعدادات البوت من مكان واحد — التغييرات تُطبّق مباشرة على السيرفر.</div>
-    </div>
-    <div class="status-chip"><span class="status-dot"></span> البوت متصل</div>
+<div class="page-intro">
+  <div><div class="eyebrow">SERVER OVERVIEW</div><div class="tab-title">مركز تحكم {{ guild["name"] }} 👻</div><div class="tab-desc">كل إعدادات Spectre في مكان واحد. التغييرات تُحفظ فورًا وتنعكس على البوت مباشرة.</div></div>
+  <div class="live-indicator"><i></i> البوت متصل</div>
 </div>
-
 <div class="stats-grid">
-    <div class="stat-card"><div class="stat-icon">👥</div><div><div class="stat-label">الأعضاء</div><div class="stat-value">{{ guild["member_count"] }}</div></div></div>
-    <div class="stat-card"><div class="stat-icon">💬</div><div><div class="stat-label">القنوات النصية</div><div class="stat-value">{{ guild["channels"]|length }}</div></div></div>
-    <div class="stat-card"><div class="stat-icon">🔊</div><div><div class="stat-label">القنوات الصوتية</div><div class="stat-value">{{ guild["voice_channels"]|length }}</div></div></div>
-    <div class="stat-card"><div class="stat-icon">🎭</div><div><div class="stat-label">الرتب</div><div class="stat-value">{{ guild["roles"]|length }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">👥</div><div><div class="stat-label">الأعضاء</div><div class="stat-value">{{ guild["member_count"] }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">💬</div><div><div class="stat-label">القنوات</div><div class="stat-value">{{ guild["channels"]|length }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🎭</div><div><div class="stat-label">الرتب</div><div class="stat-value">{{ guild["roles"]|length }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🟢</div><div><div class="stat-label">حالة Spectre</div><div class="stat-value" style="font-size:1rem">Online</div></div></div>
 </div>
-
 <div class="quick-grid">
-    <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='antinuke') }}"><span>🛡️</span><div><strong>الحماية</strong><small>Anti-Nuke و Anti-Raid و Anti-Spam</small></div><b>←</b></a>
-    <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='tickets') }}"><span>🎫</span><div><strong>التذاكر</strong><small>إنشاء ونشر نظام الدعم</small></div><b>←</b></a>
-    <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='leveling') }}"><span>🏆</span><div><strong>اللفلات</strong><small>XP والرتب والمكافآت</small></div><b>←</b></a>
-    <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='moderation') }}"><span>🔨</span><div><strong>الإدارة</strong><small>طرد، حظر و Timeout</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='tickets') }}"><span>🎫</span><div><strong>مكتب التذاكر</strong><small>لوحات، خيارات، توجيه وإعدادات الإغلاق</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='applications') }}"><span>📝</span><div><strong>التقديمات</strong><small>نماذج وأسئلة ومراجعة الطلبات</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}"><span>🧩</span><div><strong>Workflow Studio</strong><small>لوحة متعددة الأزرار والوظائف</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='commands') }}"><span>⌘</span><div><strong>مركز الأوامر</strong><small>ابحث في أوامر Spectre واستخدامها</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='antinuke') }}"><span>🛡️</span><div><strong>الحماية</strong><small>Anti-Nuke وAnti-Raid وAnti-Phishing</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='modlog') }}"><span>📋</span><div><strong>السجلات</strong><small>تتبع أحداث الإدارة والأنظمة</small></div><b>←</b></a>
 </div>
-
-<div class="card info-card">
-    <h3>💡 نصيحة</h3>
-    <p>ابدأ من <b>الحماية</b> ثم اضبط <b>الترحيب والتذاكر واللفلات</b>. لا تحتاج لإعادة تشغيل البوت بعد تغيير إعدادات السيرفر.</p>
-</div>
+<div class="card info-card"><h3>🚀 فلسفة Spectre الجديدة</h3><p>نحوّل كل ميزة إلى <b>وحدة مستقلة</b> لها إعداداتها، صلاحياتها، ومعاينتها، بدل صفحات طويلة من الخيارات. هذا يجعل التذاكر والتقديمات واللوحات قابلة للتوسع لاحقًا إلى طوابير مراجعة، توجيه لكل خيار، إجراءات تلقائية وسجل تغييرات.</p></div>

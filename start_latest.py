@@ -7,7 +7,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -16,10 +15,8 @@ REQUIREMENTS = ROOT / "requirements.txt"
 
 
 def prepare_ffmpeg() -> None:
-    """Use bundled FFmpeg when present, or unpack the compact archive once."""
+    """Prefer host FFmpeg; radio.py has a lazy static-ffmpeg fallback."""
     existing = ROOT / "bin" / "ffmpeg"
-    archive = ROOT / "ffmpeg-static.tar.xz"
-    runtime = ROOT / ".runtime" / "ffmpeg"
     configured = os.getenv("FFMPEG_PATH", "").strip()
     if configured:
         return
@@ -31,24 +28,7 @@ def prepare_ffmpeg() -> None:
     if existing.is_file():
         os.environ.setdefault("FFMPEG_PATH", str(existing))
         return
-    if not archive.is_file() or runtime.is_file():
-        if runtime.is_file():
-            os.environ.setdefault("FFMPEG_PATH", str(runtime))
-        return
-    runtime.parent.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, mode="r:xz") as bundle:
-        member = next((item for item in bundle.getmembers() if item.name.endswith("/ffmpeg")), None)
-        if member is None:
-            raise FileNotFoundError("لم أجد ملف ffmpeg داخل الأرشيف المضغوط")
-        source = bundle.extractfile(member)
-        if source is None:
-            raise FileNotFoundError("تعذر قراءة ffmpeg من الأرشيف المضغوط")
-        with runtime.open("wb") as target:
-            while chunk := source.read(1024 * 1024):
-                target.write(chunk)
-    runtime.chmod(runtime.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    os.environ.setdefault("FFMPEG_PATH", str(runtime))
-    print(f"[Spectre] Prepared bundled FFmpeg at {runtime}", flush=True)
+    print("[Spectre] No system/bundled FFmpeg found; radio.py will use lazy static-ffmpeg if needed.", flush=True)
 
 # JustRunMyApp/Wispbyte قد يرفعان الملفات بدون تثبيت الاعتماديات تلقائياً.
 # نثبّت فقط ما هو ناقص فعلياً من الوحدات المطلوبة وقت التشغيل.

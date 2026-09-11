@@ -61,7 +61,7 @@ intents.bans = True
 
 ALLOWED_MENTIONS = discord.AllowedMentions(roles=True, users=True, everyone=False)
 DASHBOARD_COMMAND_MARKER = "\u2063spectre-dashboard:"
-BOT_BUILD_ID = "2026-09-10-radio-reconnect-hardening-1"
+BOT_BUILD_ID = "2026-09-11-dm-command-lock-restore-version-1"
 DEFAULT_QURAN_RADIO_STREAM_URL = radio.DEFAULT_QURAN_RADIO_STREAM_URL
 radio_manager = radio.RadioManager()
 
@@ -212,6 +212,32 @@ class SpectreBot(commands.Bot):
             return None
 
 bot = SpectreBot(command_prefix=dynamic_prefix, intents=intents, allowed_mentions=ALLOWED_MENTIONS, help_command=None)
+
+
+@bot.check
+async def _guild_commands_only(ctx: commands.Context) -> bool:
+    """Spectre is a server-installed bot: never execute commands in DMs."""
+    if ctx.guild is None:
+        raise commands.NoPrivateMessage()
+    command_name = getattr(ctx.command, "name", "")
+    if command_name and not db.is_command_enabled(ctx.guild.id, command_name):
+        raise commands.CheckFailure("هذا الأمر معطّل من إعدادات السيرفر.")
+    return True
+
+
+@bot.tree.interaction_check
+async def _slash_command_guard(interaction: discord.Interaction) -> bool:
+    # Discord should already hide guild_only commands from DMs; this is the
+    # final runtime guard for stale clients/direct interaction payloads.
+    if interaction.guild is None:
+        return False
+    command = getattr(interaction, "command", None)
+    name = getattr(command, "name", "")
+    if name and not db.is_command_enabled(interaction.guild.id, name):
+        if not interaction.response.is_done():
+            await interaction.response.send_message("هذا الأمر معطّل من إعدادات السيرفر.", ephemeral=True)
+        return False
+    return True
 
 
 @bot.before_invoke
@@ -875,6 +901,28 @@ class TicketCloseView(discord.ui.View):
         self.close_image_url = str(image_url or "")
         self.close_thumbnail_url = str(thumbnail_url or "")
 
+    @discord.ui.button(label="استلام التذكرة", style=discord.ButtonStyle.primary, emoji="🙋", custom_id="ticket_claim")
+    async def claim_ticket(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        if not interaction.guild or not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message("❌ لا أستطيع استلام هذه التذكرة.", ephemeral=True)
+            return
+        if not is_staff_member(interaction.user):
+            await interaction.response.send_message("❌ زر الاستلام مخصص للإدارة.", ephemeral=True)
+            return
+        topic = interaction.channel.topic or ""
+        marker = "ticket-claimed:"
+        if marker in topic:
+            current = topic.split(marker, 1)[1].split("|", 1)[0]
+            if current.isdigit() and int(current) != interaction.user.id:
+                await interaction.response.send_message("⚠️ هذه التذكرة مستلمة بالفعل من عضو آخر في الإدارة.", ephemeral=True)
+                return
+        base_topic = topic.split("|ticket-claimed:", 1)[0].split("ticket-claimed:", 1)[0].rstrip("|")
+        await interaction.channel.edit(topic=f"{base_topic}|ticket-claimed:{interaction.user.id}")
+        button.disabled = True
+        button.label = f"مستلمة بواسطة {interaction.user.display_name[:35]}"
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send("✅ تم استلام التذكرة. أنت المسؤول عنها الآن.", ephemeral=True)
+
     @discord.ui.button(label="إغلاق التذكرة", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="ticket_close")
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         if not interaction.guild or not isinstance(interaction.channel, discord.TextChannel):
@@ -895,6 +943,20 @@ class TicketCloseView(discord.ui.View):
         if self.close_thumbnail_url.startswith(("https://", "http://")): close_embed.set_thumbnail(url=self.close_thumbnail_url)
         await interaction.response.send_message(content=self.close_mentions or None, embed=close_embed, ephemeral=True, allowed_mentions=ALLOWED_MENTIONS)
         channel_name = interaction.channel.name
+        # Transcript خفيف قبل الحذف: يبقى سجل المحادثة متاحاً للإدارة بدلاً من فقدانه.
+        try:
+            lines = [f"Spectre Ticket Transcript — #{channel_name}", f"Closed by: {interaction.user} ({interaction.user.id})", ""]
+            async for message in interaction.channel.history(limit=1000, oldest_first=True):
+                stamp = message.created_at.isoformat()
+                author = f"{message.author} ({message.author.id})"
+                content = message.content or "[embed/attachment]"
+                lines.append(f"[{stamp}] {author}: {content}")
+            transcript = "\n".join(lines).encode("utf-8", errors="replace")
+            log_channel = interaction.guild.get_channel(int((await db_call(db.get_guild_settings, interaction.guild.id)).get("mod_log_channel_id") or 0))
+            if isinstance(log_channel, discord.TextChannel):
+                await log_channel.send(content=f"📄 Transcript للتذكرة **#{channel_name}**", file=discord.File(BytesIO(transcript), filename=f"transcript-{channel_name}.txt"))
+        except Exception:
+            pass
         await send_mod_log(interaction.guild, discord.Embed(title="🔒 إغلاق تذكرة", description=f"**بواسطة:** {interaction.user.mention}\n**الروم:** #{channel_name}", color=discord.Color.red()))
         await asyncio.sleep(5)
         await interaction.channel.delete(reason=f"أغلقها {interaction.user}")
@@ -925,11 +987,37 @@ def discord_asset_url(raw_url: object) -> str:
 
 
 def workflow_embed(config: dict[str, Any]) -> discord.Embed:
-    embed = discord.Embed(title=str(config.get("title", "Spectre"))[:256], description=str(config.get("description", ""))[:2500], color=parse_color(str(config.get("color", "#5865F2"))))
+    embed = discord.Embed(
+        title=str(config.get("title", "Spectre"))[:256] or None,
+        description=str(config.get("description", ""))[:4096],
+        url=str(config.get("url", ""))[:1000] if str(config.get("url", "")).startswith(("https://", "http://")) else None,
+        color=parse_color(str(config.get("color", "#5865F2"))),
+    )
     image_url = discord_asset_url(config.get("imageUrl"))
     thumbnail_url = discord_asset_url(config.get("thumbnailUrl"))
     if image_url: embed.set_image(url=image_url)
     if thumbnail_url: embed.set_thumbnail(url=thumbnail_url)
+    author = config.get("author") if isinstance(config.get("author"), dict) else {}
+    author_name = str(author.get("name") or "")[:256]
+    author_url = str(author.get("url") or "")
+    author_icon = discord_asset_url(author.get("iconUrl"))
+    if author_name:
+        author_kwargs = {"name": author_name}
+        if author_url.startswith(("https://", "http://")): author_kwargs["url"] = author_url
+        if author_icon: author_kwargs["icon_url"] = author_icon
+        embed.set_author(**author_kwargs)
+    footer = config.get("footer") if isinstance(config.get("footer"), dict) else {}
+    footer_text = str(footer.get("text") or "")[:2048]
+    footer_icon = discord_asset_url(footer.get("iconUrl"))
+    if footer_text:
+        footer_kwargs = {"text": footer_text}
+        if footer_icon: footer_kwargs["icon_url"] = footer_icon
+        embed.set_footer(**footer_kwargs)
+    for field in (config.get("fields") or [])[:25]:
+        if not isinstance(field, dict): continue
+        name = str(field.get("name") or "حقل")[:256]
+        value = str(field.get("value") or "​")[:1024]
+        embed.add_field(name=name, value=value, inline=bool(field.get("inline", False)))
     return embed
 
 
@@ -1053,32 +1141,81 @@ class PanelMessageModal(discord.ui.Modal):
 
 def build_panel_view(guild_id: int, config: dict[str, Any]) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
-    for item in config.get("buttons", [])[:25]:
+    for index, item in enumerate(config.get("buttons", [])[:25]):
+        if not isinstance(item, dict):
+            continue
         action = str(item.get("action", "send_message"))
-        button = discord.ui.Button(label=str(item.get("label", "زر"))[:80], style=parse_style(str(item.get("style", "primary"))), emoji=parse_emoji(str(item.get("emoji", ""))), custom_id=f"panel:{guild_id}:{item.get('id') or 'button'}")
+        style_name = str(item.get("style", "primary"))
+        if action == "open_url":
+            style = discord.ButtonStyle.link
+        else:
+            style = parse_style(style_name)
+        kwargs = {
+            "label": str(item.get("label", "زر"))[:80] or "زر",
+            "style": style,
+            "emoji": parse_emoji(str(item.get("emoji", ""))),
+        }
+        if action == "open_url":
+            url = str(item.get("url") or "").strip()
+            if not url.startswith(("https://", "http://")):
+                continue
+            kwargs["url"] = url[:1000]
+        else:
+            kwargs["custom_id"] = f"panel:{guild_id}:{item.get('id') or index}"
+        button = discord.ui.Button(**kwargs)
+
         async def callback(interaction: discord.Interaction, selected_action=action, selected_item=item) -> None:
             if not interaction.guild or interaction.guild.id != guild_id:
                 await interaction.response.send_message("❌ هذا الزر ليس تابعاً لهذا السيرفر.", ephemeral=True); return
             if selected_action == "open_modal":
                 if isinstance(interaction.user, discord.Member) and await member_is_blocked(interaction.user, "blocked_application_role_ids"):
-                    await interaction.response.send_message("⛔ لا يمكنك إرسال تقديم بهذه الرتبة.", ephemeral=True); return
+                    await interaction.response.send_message("⛔ لا يمكنك استخدام هذا النموذج بهذه الرتبة.", ephemeral=True); return
                 await interaction.response.send_modal(PanelMessageModal(config))
+            elif selected_action == "open_application":
+                if isinstance(interaction.user, discord.Member) and await member_is_blocked(interaction.user, "blocked_application_role_ids"):
+                    await interaction.response.send_message("⛔ لا يمكنك إرسال تقديم بهذه الرتبة.", ephemeral=True); return
+                await interaction.response.send_modal(StaffApplyModal())
             elif selected_action == "create_ticket":
-                await create_custom_ticket(interaction, config)
+                ticket_config = dict(config)
+                # كل خيار في اللوحة يمكنه الآن امتلاك توجيهه الخاص، كما في لوحات الدعم الحديثة.
+                for key in (
+                    "ticketCategoryId", "ticketSupportRoleIds", "ticketNamePrefix",
+                    "ticketWelcomeTitle", "ticketWelcomeMessage", "ticketWelcomeImageUrl",
+                    "ticketWelcomeThumbnailUrl", "ticketCloseMessage", "ticketCloseImageUrl",
+                    "ticketCloseThumbnailUrl",
+                ):
+                    if key in selected_item:
+                        ticket_config[key] = selected_item[key]
+                await create_custom_ticket(interaction, ticket_config)
+            elif selected_action == "toggle_role":
+                role_id = str(selected_item.get("roleId") or "")
+                role = interaction.guild.get_role(int(role_id)) if role_id.isdigit() else None
+                if role is None:
+                    await interaction.response.send_message("❌ لم أجد الرتبة المحددة.", ephemeral=True); return
+                if not isinstance(interaction.user, discord.Member):
+                    await interaction.response.send_message("❌ تعذّر الوصول لعضويتك.", ephemeral=True); return
+                try:
+                    if role in interaction.user.roles:
+                        await interaction.user.remove_roles(role, reason="لوحة Spectre")
+                        message = str(selected_item.get("removeMessage") or f"تمت إزالة رتبة {role.mention}.")
+                    else:
+                        await interaction.user.add_roles(role, reason="لوحة Spectre")
+                        message = str(selected_item.get("addMessage") or f"تمت إضافة رتبة {role.mention}.")
+                    await interaction.response.send_message(message[:1900], ephemeral=True)
+                except discord.Forbidden:
+                    await interaction.response.send_message("❌ البوت لا يملك صلاحية إدارة هذه الرتبة.", ephemeral=True)
             else:
                 response_title = str(selected_item.get("responseTitle") or "")[:256]
-                response_message = str(selected_item.get("responseMessage") or selected_item.get("message") or "تم استلام طلبك.")[:2500]
+                response_message = str(selected_item.get("responseMessage") or selected_item.get("message") or "تم استلام طلبك.")[:4000]
                 response_embed = discord.Embed(description=response_message, colour=parse_color(str(config.get("color", "#5865F2"))))
-                if response_title:
-                    response_embed.title = response_title
-                response_image = str(selected_item.get("responseImageUrl") or "")
-                response_thumbnail = str(selected_item.get("responseThumbnailUrl") or "")
-                if response_image:
-                    response_embed.set_image(url=response_image)
-                if response_thumbnail:
-                    response_embed.set_thumbnail(url=response_thumbnail)
+                if response_title: response_embed.title = response_title
+                response_image = discord_asset_url(selected_item.get("responseImageUrl"))
+                response_thumbnail = discord_asset_url(selected_item.get("responseThumbnailUrl"))
+                if response_image: response_embed.set_image(url=response_image)
+                if response_thumbnail: response_embed.set_thumbnail(url=response_thumbnail)
                 await interaction.response.send_message(embed=response_embed, ephemeral=True)
-        button.callback = callback
+        if action != "open_url":
+            button.callback = callback
         view.add_item(button)
     return view
 
@@ -1776,6 +1913,12 @@ async def on_message(message: discord.Message) -> None:
                     color=discord.Color.red(),
                 ))
             return
+
+    # الخاص مغلق بالكامل للأوامر النصية: أوامر Spectre تعمل داخل السيرفرات فقط.
+    # هذا حارس عام إضافي فوق @commands.guild_only حتى لا يُمرَّر أي Prefix command
+    # إلى محلل الأوامر في DM مهما كان اسم الأمر أو الـalias.
+    if message.guild is None:
+        return
 
     # الردود التلقائية: تُفحص فقط للرسائل التي ليست أوامر بوت، حتى لا تتعارض
     # مع أوامر Spectre نفسها.
@@ -3747,10 +3890,9 @@ async def games_list_command(ctx: commands.Context) -> None:
 
 
 @bot.hybrid_command(name="نسخة_البوت", aliases=["version", "البناء"], description="يعرض نسخة/إصدار البوت الحالي المُشغَّل فعلياً على هذه الاستضافة")
+@commands.guild_only()
 async def show_bot_version(ctx: commands.Context) -> None:
-    """مفيد جداً عند التحديث: بعد رفع نسخة كود جديدة على الاستضافة وإعادة
-    التشغيل، شغّل هذا الأمر للتأكد أن BOT_BUILD_ID تغيّر فعلاً — لو ظهر نفس
-    الإصدار القديم يعني الرفع أو إعادة التشغيل لم تكتمل بعد."""
+    """يعرض علامة البناء داخل السيرفر فقط للمساعدة في التحقق من التحديث."""
     await ctx.send(f"🔧 نسخة البوت المُشغَّلة حالياً: `{BOT_BUILD_ID}`")
 
 
@@ -3786,6 +3928,10 @@ async def sync_commands(ctx: commands.Context) -> None:
 
 @bot.event
 async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
+    # Private messages are intentionally a dead end for Spectre commands.
+    # Do not leak command names, help text, or even an error response in DMs.
+    if ctx.guild is None:
+        return
     if isinstance(error, commands.CommandNotFound):
         return
     if isinstance(error, commands.MissingPermissions) and getattr(ctx.message, "_spectre_dashboard_command", False) and not getattr(ctx, "_spectre_dashboard_bypass_attempted", False):
@@ -3970,6 +4116,20 @@ async def on_ready() -> None:
                 if app_command is not None and app_command.name not in registered_names:
                     bot.tree.add_command(app_command)
                     registered_names.add(app_command.name)
+
+            # Discord itself controls whether an application command is offered in
+            # DMs. Mark every top-level command guild-only before sync so typing "/"
+            # in a private chat does not expose Spectre commands at all. This is
+            # stronger than merely handling NoPrivateMessage after the command is
+            # selected. Hybrid commands are included because their app-command
+            # objects have now been added to the same tree.
+            guild_only_count = 0
+            for tree_command in bot.tree.walk_commands():
+                if isinstance(tree_command, app_commands.Command) and not tree_command.guild_only:
+                    tree_command.guild_only = True
+                    guild_only_count += 1
+
+            print(f"[Spectre] Guild-only application commands enforced: {guild_only_count}", flush=True)
             synced = await bot.tree.sync()
             synced_names = ", ".join(command.name for command in synced)
             print(f"تمت مزامنة {len(synced)} أمر سلاش: {synced_names}")
@@ -3983,7 +4143,7 @@ async def on_ready() -> None:
         print(f"تم تسجيل دخول البوت باسم: {bot.user}")
     if not cleanup_memory_caches.is_running():
         cleanup_memory_caches.start()
-        print(f"[Spectre] Build: {BOT_BUILD_ID}")
+        print(f"[Spectre] Runtime build marker: {BOT_BUILD_ID}")
         print("[DashboardControl] Workflow command available: " + str(any(command.name == "تحديث_تدفق" for command in bot.commands)))
     if not check_pending_giveaways.is_running():
         check_pending_giveaways.start()
