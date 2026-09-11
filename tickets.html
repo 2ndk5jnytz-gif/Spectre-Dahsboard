@@ -1,62 +1,22 @@
 <div class="page-intro">
-  <div><div class="eyebrow">SUPPORT DESK</div><div class="tab-title">🎫 مكتب التذاكر</div><div class="tab-desc">أنشئ لوحة تذاكر احترافية، واضبط الصورة والأزرار والإغلاق من مكان واحد.</div></div>
-  <a class="btn btn-gold" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">＋ Workflow Studio</a>
+  <div><div class="eyebrow">SUPPORT DESK</div><div class="tab-title">🎫 مكتب التذاكر</div><div class="tab-desc">ابنِ لوحات دعم متعددة، وكل خيار يمكن أن يذهب إلى قسم ورتبة دعم مختلفة.</div></div>
+  <a class="btn btn-gold" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">＋ إنشاء لوحة</a>
 </div>
 
 <div class="stats-grid support-stats">
-  <div class="stat-card"><div class="stat-icon">🎫</div><div><div class="stat-label">تذاكر مفتوحة</div><div class="stat-value">{{ open_ticket_count }}</div><small class="stat-foot">Active now</small></div></div>
-  <div class="stat-card"><div class="stat-icon">▣</div><div><div class="stat-label">لوحات منشورة</div><div class="stat-value">{{ panel_count }}</div><small class="stat-foot">Saved panels</small></div></div>
-  <div class="stat-card"><div class="stat-icon">🙋</div><div><div class="stat-label">استلام التذكرة</div><div class="stat-value" style="font-size:1rem">مفعّل</div><small class="stat-foot">Claim system</small></div></div>
-  <div class="stat-card"><div class="stat-icon">📄</div><div><div class="stat-label">Transcript</div><div class="stat-value" style="font-size:1rem">تلقائي</div><small class="stat-foot">Before close</small></div></div>
+  <div class="stat-card"><div class="stat-icon">▣</div><div><div class="stat-label">لوحات الدعم</div><div class="stat-value">3+</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🙋</div><div><div class="stat-label">استلام التذكرة</div><div class="stat-value" style="font-size:1rem">مفعّل</div></div></div>
+  <div class="stat-card"><div class="stat-icon">📄</div><div><div class="stat-label">Transcript</div><div class="stat-value" style="font-size:1rem">تلقائي</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🔒</div><div><div class="stat-label">تذكرة لكل عضو</div><div class="stat-value" style="font-size:1rem">1 مفتوحة</div></div></div>
 </div>
 
-<div class="card ticket-panel-editor">
-  <div class="card-title-row"><div><h3>لوحة الدعم الرئيسية</h3><small>اكتب المحتوى وارفع الصور من الهاتف مباشرة، ثم انشرها في القناة التي تختارها.</small></div><span class="mini-tag">PUBLISH</span></div>
-  <div class="row">
-    <div class="field"><label>القناة</label><select id="ticket-panel-channel">{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>{% endfor %}</select></div>
-    <div class="field"><label>لون اللوحة</label><div class="color-row"><input id="ticket-panel-color" type="color" value="#5865F2"><input id="ticket-panel-color-text" type="text" value="#5865F2" maxlength="7"></div></div>
+<div class="card">
+  <div class="card-title-row"><div><h3>لوحة الدعم الرئيسية</h3><small>الطريقة الجديدة في Spectre: اللوحة تحتوي خيارات، وكل خيار يملك إعداداته.</small></div><span class="mini-tag">WORKFLOW</span></div>
+  <div class="workflow-option-grid">
+    <div class="workflow-option"><div class="workflow-option-icon">🎫</div><div><b>دعم عام</b><small>قسم الدعم العام · فريق الدعم</small></div><span class="status-pill enabled">جاهز</span></div>
+    <div class="workflow-option"><div class="workflow-option-icon">🚨</div><div><b>بلاغ</b><small>قسم البلاغات · المشرفون</small></div><span class="status-pill enabled">جاهز</span></div>
+    <div class="workflow-option"><div class="workflow-option-icon">💳</div><div><b>مشتريات</b><small>قسم المبيعات · فريق المتجر</small></div><span class="status-pill draft">مسودة</span></div>
   </div>
-  <div class="row">
-    <div class="field"><label>عنوان اللوحة</label><input id="ticket-panel-title" value="مركز المساعدة والدعم" maxlength="256"></div>
-    <div class="field"><label>نص الزر</label><input id="ticket-panel-label" value="فتح تذكرة دعم" maxlength="80"></div>
-  </div>
-  <div class="field"><label>الوصف</label><textarea id="ticket-panel-description" maxlength="4096" placeholder="اضغط الزر في الأسفل لفتح تذكرة خاصة بك."></textarea></div>
-
-  <div class="media-upload-inline ticket-media">
-    <div class="media-upload-title">🖼️ صور اللوحة <span class="muted-inline">(اختياري)</span></div>
-    <div class="row">
-      <div class="field upload-field">
-        <label>الصورة الرئيسية</label>
-        <input id="ticket-panel-image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="file-input" onchange="handleTicketPanelImage(this,'ticket-panel-image-token','ticket-panel-image-status','ticket-panel-image-preview')">
-        <input id="ticket-panel-image-token" type="hidden">
-        <div id="ticket-panel-image-status" class="upload-status">اضغط لاختيار صورة من جهازك</div>
-        <img id="ticket-panel-image-preview" class="upload-preview" style="display:none" alt="معاينة الصورة">
-      </div>
-      <div class="field upload-field">
-        <label>الصورة الصغيرة (Thumbnail)</label>
-        <input id="ticket-panel-thumb-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="file-input" onchange="handleTicketPanelImage(this,'ticket-panel-thumb-token','ticket-panel-thumb-status','ticket-panel-thumb-preview')">
-        <input id="ticket-panel-thumb-token" type="hidden">
-        <div id="ticket-panel-thumb-status" class="upload-status">اختياري</div>
-        <img id="ticket-panel-thumb-preview" class="upload-preview upload-preview-thumb" style="display:none" alt="معاينة الصورة الصغيرة">
-      </div>
-    </div>
-  </div>
-
-  <button class="btn btn-gold publish-big" type="button" onclick="publishTicketPanel()">🚀 نشر لوحة التذاكر</button>
-</div>
-
-
-<div class="section-heading ticket-list-heading"><div><span class="eyebrow">ACTIVE QUEUE</span><h2>التذاكر المفتوحة</h2></div><span class="muted-inline">{{ ticket_channels|length }} تذكرة نشطة</span></div>
-<div class="card ticket-queue-card">
-  {% if ticket_channels %}
-  <div class="ticket-queue" id="ticket-queue">
-    {% for ticket in ticket_channels %}
-    <a class="ticket-row" href="https://discord.com/channels/{{ guild['id'] }}/{{ ticket['id'] }}" target="_blank" rel="noopener">
-      <span class="ticket-avatar">🎫</span><span class="ticket-main"><strong>#{{ ticket['name'] }}</strong><small>روم تذكرة نشطة</small></span><span class="ticket-open">فتح في Discord ↗</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% else %}<div class="empty-state ticket-empty">لا توجد تذاكر مفتوحة حاليًا.</div>{% endif %}
 </div>
 
 <div class="card">
@@ -67,24 +27,10 @@
   </div>
   <div class="row">
     <div class="field"><label>قناة السجلات</label><select id="ticket-log"><option value="">اختر قناة من السجلات</option>{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>{% endfor %}</select></div>
-    <div class="field"><label>سلوك الإغلاق</label><div class="locked-setting"><span>📄 Transcript ثم حذف</span><small>هذا هو السلوك الآمن الحالي للتذاكر: حفظ Transcript في قناة السجلات ثم حذف الروم.</small></div></div>
+    <div class="field"><label>سلوك الإغلاق</label><select id="ticket-close"><option>Transcript ثم حذف</option><option>Transcript فقط</option><option>إغلاق بدون حذف</option></select></div>
   </div>
   <button class="btn btn-gold" onclick="saveTicketDefaults()">💾 حفظ الإعدادات</button>
 </div>
 
-<div class="card info-card"><h3>🧩 محرر اللوحات المتقدم</h3><p>لأكثر من نوع تذكرة، افتح Workflow Studio. لكل زر يمكنك تحديد القسم، رتب الدعم، الرسالة الافتتاحية، الوظيفة، والرابط.</p><a class="inline-link" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">فتح Workflow Studio ←</a></div>
-<script>
-async function handleTicketPanelImage(input, tokenId, statusId, previewId){
-  const file=input.files?.[0]; if(!file) return;
-  previewLocalImage(input, document.getElementById(previewId));
-  const result=await uploadDashboardImage(input, document.getElementById(statusId));
-  if(result) document.getElementById(tokenId).value=result.token;
-}
-async function publishTicketPanel(){
-  const payload={channel_id:document.getElementById('ticket-panel-channel').value,title:document.getElementById('ticket-panel-title').value,description:document.getElementById('ticket-panel-description').value,label:document.getElementById('ticket-panel-label').value,style:'success',color:document.getElementById('ticket-panel-color-text').value,image_upload_token:document.getElementById('ticket-panel-image-token').value,thumbnail_upload_token:document.getElementById('ticket-panel-thumb-token').value};
-  const result=await callAction('ticket-panel',payload);
-  if(result?.ok) showToast('✅ تم نشر لوحة التذاكر بالصور بنجاح');
-}
-document.querySelectorAll('#ticket-panel-color,#ticket-panel-color-text').forEach(x=>x.addEventListener('input',e=>{if(e.target.id==='ticket-panel-color')document.getElementById('ticket-panel-color-text').value=e.target.value;else if(/^#[0-9a-f]{6}$/i.test(e.target.value))document.getElementById('ticket-panel-color').value=e.target.value;}));
-async function saveTicketDefaults(){await saveSettings({ticket_category_id:document.getElementById('ticket-category').value||null,mod_log_channel_id:document.getElementById('ticket-log').value||null});}
-</script>
+<div class="card info-card"><h3>🧩 محرر اللوحات المتقدم</h3><p>بدلاً من لوحة بزر واحد، استخدم Workflow Studio لإنشاء عدة خيارات داخل نفس الرسالة. لكل خيار: وظيفة، إيموجي، لون، رتبة دعم، قسم، رسالة افتتاح، وإعدادات الإغلاق.</p><a class="inline-link" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">فتح Workflow Studio ←</a></div>
+<script>async function saveTicketDefaults(){await saveSettings({ticket_category_id:document.getElementById('ticket-category').value||null,mod_log_channel_id:document.getElementById('ticket-log').value||null});}</script>

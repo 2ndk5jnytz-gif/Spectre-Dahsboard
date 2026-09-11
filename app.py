@@ -18,15 +18,11 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-import uuid
-import mimetypes
-import secrets
 from functools import wraps
 from pathlib import Path
 from typing import Any
 
 from flask import Flask, redirect, render_template, request, session, url_for, jsonify
-from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,21 +35,6 @@ load_dotenv(ROOT / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("DASHBOARD_SECRET_KEY", "").strip() or os.urandom(32)
-app.config.update(
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "1") == "1",
-)
-
-
-@app.after_request
-def add_security_headers(response):
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    if request.is_secure:
-        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-    return response
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "").strip()
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
@@ -64,14 +45,17 @@ MANAGE_GUILD = 0x20
 
 db.init_db()
 
-UPLOAD_DIR = Path(os.getenv("SPECTRE_UPLOAD_DIR", "/tmp/spectre_dashboard_uploads"))
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-MAX_IMAGE_UPLOAD = 8 * 1024 * 1024
-ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGE_UPLOAD + 1024
-
 _bot_instance: Any = None
 _bot_loop: asyncio.AbstractEventLoop | None = None
+
+
+@app.after_request
+def _security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
 def call_bot(coro):
@@ -109,14 +93,11 @@ def login():
     if not DISCORD_CLIENT_ID or not DASHBOARD_REDIRECT_URI:
         return "لوحة التحكم غير مُهيّأة بعد: أضف DISCORD_CLIENT_ID و DASHBOARD_REDIRECT_URI في .env", 500
     import urllib.parse
-    state = secrets.token_urlsafe(32)
-    session["oauth_state"] = state
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "redirect_uri": DASHBOARD_REDIRECT_URI,
         "response_type": "code",
         "scope": "identify guilds",
-        "state": state,
     }
     query = urllib.parse.urlencode(params)
     return redirect(f"https://discord.com/oauth2/authorize?{query}")
@@ -127,12 +108,8 @@ def callback():
     import requests
 
     code = request.args.get("code")
-    state = request.args.get("state", "")
-    expected_state = session.pop("oauth_state", None)
     if not code:
         return redirect(url_for("index"))
-    if not expected_state or not state or not secrets.compare_digest(state, expected_state):
-        return "جلسة تسجيل الدخول غير صالحة. أعد المحاولة من البداية.", 400
     token_response = requests.post(
         f"{DISCORD_API}/oauth2/token",
         data={
@@ -160,6 +137,7 @@ def callback():
         guild["id"] for guild in guilds_response.json() if (int(guild.get("permissions", 0)) & MANAGE_GUILD) == MANAGE_GUILD
     ]
 
+    session["user_id"] = str(user["id"])
     session["user"] = {
         "id": user["id"],
         "username": user.get("global_name") or user["username"],
@@ -245,29 +223,19 @@ ANTINUKE_PERMISSION_CHOICES = [
 @app.route("/dashboard/<guild_id>")
 @app.route("/dashboard/<guild_id>/<tab>")
 @login_required
-def guild_dashboard(guild_id: str, tab: str = "home"):
+def guild_dashboard(guild_id: str, tab: str = "general"):
     overview = guild_or_403(guild_id)
     if overview is None:
         return redirect(url_for("guild_picker"))
     settings = db.get_guild_settings(int(guild_id))
     context = {"guild": overview, "guild_id": guild_id, "tabs": TABS, "nav_groups": NAV_GROUPS, "active_tab": tab, "settings": settings}
-    if tab in {"home", "tickets", "applications", "modlog"}:
-        try:
-            context["application_counts"] = db.get_application_counts(int(guild_id))
-        except Exception:
-            context["application_counts"] = {"pending": 0, "accepted": 0, "rejected": 0, "total": 0}
-        try:
-            context["panel_count"] = len(db.get_panels(int(guild_id)))
-        except Exception:
-            context["panel_count"] = 0
-        context["ticket_channels"] = [c for c in overview.get("channels", []) if str(c.get("name", "")).startswith("ticket-")]
-        context["open_ticket_count"] = len(context["ticket_channels"])
-    if tab in {"home", "commands"}:
-        context["commands_list"] = bot_actions.list_commands(_bot_instance)
-        context["command_count"] = len(context["commands_list"])
-        context["disabled_commands"] = db.get_disabled_commands(int(guild_id))
-    if tab == "modlog":
-        context["dashboard_audit"] = db.get_dashboard_audit(int(guild_id), 80)
+    context["audit_log"] = db.get_dashboard_audit(int(guild_id), 20)
+    if tab == "commands":
+        commands_list = bot_actions.list_commands(_bot_instance)
+        disabled = db.get_disabled_commands(int(guild_id))
+        for item in commands_list:
+            item["enabled"] = item["name"].lower() not in disabled
+        context["commands_list"] = commands_list
     if tab == "leveling":
         context["level_roles"] = db.get_level_roles(int(guild_id))
     if tab == "auto_responses":
@@ -287,56 +255,6 @@ def guild_dashboard(guild_id: str, tab: str = "home"):
     return render_template("guild_dashboard.html", template=template, **context)
 
 
-@app.route("/dashboard/<guild_id>/upload-image", methods=["POST"])
-@login_required
-def upload_dashboard_image(guild_id: str):
-    """استقبال صورة من الهاتف/الكمبيوتر مؤقتاً، ثم إرفاقها برسالة Discord عند النشر.
-
-    لا نعتمد على تخزين Render الدائم ولا نرفع الصورة لخدمة خارجية. الصورة تبقى
-    مؤقتة في مساحة التشغيل حتى ينشرها البوت داخل رسالة Discord.
-    """
-    if guild_id not in session.get("manageable_guild_ids", []):
-        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
-    file = request.files.get("file")
-    if not file or not file.filename:
-        return jsonify({"ok": False, "error": "اختر صورة أولاً."}), 400
-    filename = secure_filename(file.filename)
-    ext = Path(filename).suffix.lower()
-    if ext not in ALLOWED_IMAGE_EXTENSIONS:
-        return jsonify({"ok": False, "error": "الصيغ المسموحة: PNG, JPG, WEBP, GIF."}), 400
-    # نقرأ حتى 8MB + بايت واحد للتأكد من تجاوز الحد قبل الحفظ.
-    data = file.stream.read(MAX_IMAGE_UPLOAD + 1)
-    if len(data) > MAX_IMAGE_UPLOAD:
-        return jsonify({"ok": False, "error": "حجم الصورة كبير. الحد الأقصى 8MB."}), 413
-    mime = mimetypes.guess_type(filename)[0] or ""
-    if not mime.startswith("image/"):
-        return jsonify({"ok": False, "error": "الملف المختار ليس صورة صالحة."}), 400
-    token = uuid.uuid4().hex
-    stored_name = f"{token}{ext}"
-    path = UPLOAD_DIR / stored_name
-    path.write_bytes(data)
-    return jsonify({"ok": True, "token": token, "name": filename, "size": len(data)})
-
-
-def _resolve_upload_token(payload: dict[str, Any], key: str):
-    token = str(payload.get(key) or "").strip()
-    if not token or len(token) != 32 or any(c not in "0123456789abcdef" for c in token.lower()):
-        return None
-    matches = list(UPLOAD_DIR.glob(token + ".*"))
-    return matches[0] if matches else None
-
-
-def _inject_uploaded_images(payload: dict[str, Any]) -> list[Path]:
-    """تحويل رموز الرفع إلى مسارات مؤقتة يفهمها bot_actions ثم إرجاع الملفات للاستهلاك."""
-    files = []
-    for token_key, path_key in (("image_upload_token", "_image_file_path"), ("thumbnail_upload_token", "_thumbnail_file_path")):
-        path = _resolve_upload_token(payload, token_key)
-        if path:
-            payload[path_key] = str(path)
-            files.append(path)
-    return files
-
-
 @app.route("/dashboard/<guild_id>/save-settings", methods=["POST"])
 @login_required
 def save_settings(guild_id: str):
@@ -349,28 +267,28 @@ def save_settings(guild_id: str):
         if key in allowed_keys:
             db.set_guild_setting(int(guild_id), key, value)
             saved.append(key)
-    if saved:
-        db.add_dashboard_audit(int(guild_id), int(session["user"]["id"]), "settings.save", {"keys": saved})
+    db.add_dashboard_audit(int(guild_id), session.get("user_id"), "settings.save", "guild_settings", {"keys": saved})
     return jsonify({"ok": True, "saved": saved})
 
 
-@app.route("/dashboard/<guild_id>/command-setting", methods=["POST"])
+@app.route("/dashboard/<guild_id>/commands/<command_name>", methods=["POST"])
 @login_required
-def set_command_setting(guild_id: str):
+def toggle_command(guild_id: str, command_name: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
-    payload = request.get_json(force=True) or {}
-    command_name = str(payload.get("command") or "").strip().lower()
-    if not command_name or len(command_name) > 100 or any(ch.isspace() for ch in command_name):
-        return jsonify({"ok": False, "error": "اسم الأمر غير صالح."}), 400
+    payload = request.get_json(force=True)
     enabled = bool(payload.get("enabled", True))
-    # لا نسمح بحفظ أسماء غير موجودة حتى لا تتراكم إعدادات يتيمة في قاعدة البيانات.
-    known = {str(c.get("name", "")).strip().lower() for c in bot_actions.list_commands(_bot_instance)}
-    if command_name not in known:
-        return jsonify({"ok": False, "error": "هذا الأمر غير موجود في Spectre حالياً."}), 404
     db.set_command_enabled(int(guild_id), command_name, enabled)
-    db.add_dashboard_audit(int(guild_id), int(session["user"]["id"]), "command.toggle", {"command": command_name, "enabled": enabled})
-    return jsonify({"ok": True, "command": command_name, "enabled": enabled})
+    db.add_dashboard_audit(int(guild_id), session.get("user_id"), "command.toggle", command_name, {"enabled": enabled})
+    return jsonify({"ok": True, "enabled": enabled})
+
+
+@app.route("/dashboard/<guild_id>/audit")
+@login_required
+def dashboard_audit(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    return jsonify({"ok": True, "items": db.get_dashboard_audit(int(guild_id), 50)})
 
 
 @app.route("/dashboard/<guild_id>/level-roles", methods=["POST"])
@@ -542,21 +460,13 @@ def proxy_action(guild_id: str, action_name: str):
     if action_func is None:
         return jsonify({"ok": False, "error": "إجراء غير معروف"}), 404
     payload = request.get_json(force=True)
-    uploaded_files = _inject_uploaded_images(payload)
     try:
         result = call_bot(action_func(_bot_instance, int(guild_id), payload))
-        db.add_dashboard_audit(int(guild_id), int(session["user"]["id"]), f"action.{action_name}", {"result": {k: v for k, v in (result or {}).items() if k in {"message_id", "channel_id"}}})
         return jsonify({"ok": True, **result})
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
     except Exception as error:
         return jsonify({"ok": False, "error": f"تعذّر تنفيذ الإجراء: {error}"}), 500
-    finally:
-        for path in uploaded_files:
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 @app.route("/dashboard/<guild_id>/search-members")

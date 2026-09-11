@@ -1,19 +1,15 @@
-<div class="page-intro">
-  <div><div class="eyebrow">AUDIT TRAIL</div><div class="tab-title">📋 سجل الإدارة</div><div class="tab-desc">آخر تغييرات لوحة Spectre التي تم تسجيلها لهذا السيرفر.</div></div>
-  <span class="mini-tag">{{ dashboard_audit|length }} حدث</span>
-</div>
-<div class="card audit-card">
-  {% if dashboard_audit %}
-  <div class="audit-list">
-    {% for item in dashboard_audit %}
-    <div class="audit-item">
-      <div class="audit-icon">{% if 'save' in item['action'] %}💾{% else %}⚡{% endif %}</div>
-      <div class="audit-main"><strong>{{ item['action'] }}</strong><small>بواسطة <code>{{ item['actor_id'] or 'System' }}</code></small></div>
-      <time>{{ item['created_at'][:19].replace('T',' ') }}</time>
+<div class="tab-title">📋 سجل الإدارة</div>
+<div class="tab-desc">قناة يسجَّل فيها كل طرد/باند/تايم أوت/فتح-إغلاق تذكرة تلقائياً.</div>
+
+<div class="card">
+    <div class="field">
+        <label>قناة اللوق</label>
+        <select data-key="mod_log_channel_id">
+            <option value="">— بدون تسجيل —</option>
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}" {% if settings['mod_log_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
     </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty-state">لا توجد تغييرات مسجلة حتى الآن.</div>
-  {% endif %}
+    <button class="btn btn-gold" onclick="saveSettings(collectForm(document.querySelector('.card')))">💾 حفظ</button>
 </div>

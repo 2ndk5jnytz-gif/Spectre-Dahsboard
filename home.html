@@ -1,34 +1,19 @@
-<section class="dashboard-hero premium-hero">
-  <div class="hero-copy">
-    <div class="eyebrow">SPECTRE CONTROL CENTER</div>
-    <div class="tab-title">أهلًا بك في مركز التحكم 👻</div>
-    <div class="tab-desc">إدارة {{ guild["name"] }} من لوحة واحدة — إعدادات واضحة، أدوات سريعة، وتجربة مصممة للجوال والكمبيوتر.</div>
-    <div class="hero-actions">
-      <a class="btn btn-gold" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='tickets') }}">🎫 إدارة التذاكر</a>
-      <a class="btn btn-ghost" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">🧩 افتح Workflow Studio</a>
-    </div>
-  </div>
-  <div class="hero-status"><span class="status-dot"></span><b>البوت متصل</b><small>جاهز لتنفيذ إعداداتك</small></div>
-</section>
-
-<div class="stats-grid premium-stats">
-  <div class="stat-card"><div class="stat-icon">👥</div><div><div class="stat-label">أعضاء السيرفر</div><div class="stat-value">{{ guild["member_count"] }}</div><small class="stat-foot">Members</small></div></div>
-  <div class="stat-card"><div class="stat-icon">🎫</div><div><div class="stat-label">تذاكر مفتوحة</div><div class="stat-value">{{ open_ticket_count }}</div><small class="stat-foot">Active tickets</small></div></div>
-  <div class="stat-card"><div class="stat-icon">📝</div><div><div class="stat-label">طلبات التقديم</div><div class="stat-value">{{ application_counts.total }}</div><small class="stat-foot">{{ application_counts.pending }} قيد المراجعة</small></div></div>
-  <div class="stat-card"><div class="stat-icon">🧩</div><div><div class="stat-label">لوحات محفوظة</div><div class="stat-value">{{ panel_count }}</div><small class="stat-foot">Panels & workflows</small></div></div>
+<div class="page-intro">
+  <div><div class="eyebrow">SERVER OVERVIEW</div><div class="tab-title">مركز تحكم {{ guild["name"] }} 👻</div><div class="tab-desc">كل إعدادات Spectre في مكان واحد. التغييرات تُحفظ فورًا وتنعكس على البوت مباشرة.</div></div>
+  <div class="live-indicator"><i></i> البوت متصل</div>
 </div>
-
-<div class="section-heading"><div><span class="eyebrow">QUICK ACCESS</span><h2>الأدوات الأساسية</h2></div><span class="muted-inline">اختر وحدة للانتقال مباشرة</span></div>
-<div class="quick-grid premium-quick">
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='tickets') }}"><span>🎫</span><div><strong>مكتب التذاكر</strong><small>لوحات الدعم، الصور، التوجيه والإغلاق</small></div><b>←</b></a>
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='applications') }}"><span>📝</span><div><strong>التقديمات</strong><small>النماذج وطابور المراجعة والقرارات</small></div><b>←</b></a>
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}"><span>🧩</span><div><strong>Workflow Studio</strong><small>أزرار، Embed، إجراءات ومسارات متعددة</small></div><b>←</b></a>
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='commands') }}"><span>⌘</span><div><strong>مركز الأوامر</strong><small>{{ command_count if command_count is defined else 'استعرض' }} أمرًا مسجلًا في Spectre</small></div><b>←</b></a>
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='antinuke') }}"><span>🛡️</span><div><strong>الحماية</strong><small>Anti-Nuke ومراقبة الأفعال الخطرة</small></div><b>←</b></a>
-  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='modlog') }}"><span>📋</span><div><strong>سجل الإدارة</strong><small>تتبع تغييرات لوحة التحكم</small></div><b>←</b></a>
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-icon">👥</div><div><div class="stat-label">الأعضاء</div><div class="stat-value">{{ guild["member_count"] }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">💬</div><div><div class="stat-label">القنوات</div><div class="stat-value">{{ guild["channels"]|length }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🎭</div><div><div class="stat-label">الرتب</div><div class="stat-value">{{ guild["roles"]|length }}</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🟢</div><div><div class="stat-label">حالة Spectre</div><div class="stat-value" style="font-size:1rem">Online</div></div></div>
 </div>
-
-<div class="split-cards">
-  <div class="card feature-card"><span class="feature-icon">⚡</span><div><h3>تنفيذ مباشر</h3><p>الإعدادات التي تحفظها من هنا تصل إلى قاعدة بيانات Spectre، والإجراءات التشغيلية تُنفذ عبر البوت مباشرة.</p></div></div>
-  <div class="card feature-card"><span class="feature-icon">📱</span><div><h3>مصمم للجوال</h3><p>القائمة الجانبية تتحول إلى Drawer، ورفع الصور يعمل من مكتبة الصور أو الكاميرا حسب جهازك.</p></div></div>
+<div class="quick-grid">
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='tickets') }}"><span>🎫</span><div><strong>مكتب التذاكر</strong><small>لوحات، خيارات، توجيه وإعدادات الإغلاق</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='applications') }}"><span>📝</span><div><strong>التقديمات</strong><small>نماذج وأسئلة ومراجعة الطلبات</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}"><span>🧩</span><div><strong>Workflow Studio</strong><small>لوحة متعددة الأزرار والوظائف</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='commands') }}"><span>⌘</span><div><strong>مركز الأوامر</strong><small>ابحث في أوامر Spectre واستخدامها</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='antinuke') }}"><span>🛡️</span><div><strong>الحماية</strong><small>Anti-Nuke وAnti-Raid وAnti-Phishing</small></div><b>←</b></a>
+  <a class="quick-card" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='modlog') }}"><span>📋</span><div><strong>السجلات</strong><small>تتبع أحداث الإدارة والأنظمة</small></div><b>←</b></a>
 </div>
+<div class="card info-card"><h3>🚀 فلسفة Spectre الجديدة</h3><p>نحوّل كل ميزة إلى <b>وحدة مستقلة</b> لها إعداداتها، صلاحياتها، ومعاينتها، بدل صفحات طويلة من الخيارات. هذا يجعل التذاكر والتقديمات واللوحات قابلة للتوسع لاحقًا إلى طوابير مراجعة، توجيه لكل خيار، إجراءات تلقائية وسجل تغييرات.</p></div>

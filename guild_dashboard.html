@@ -7,27 +7,29 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="glow-bg"></div>
-    <div class="dashboard-layout">
-        <aside class="sidebar">
-            <div class="brand-mini"><span class="brand-mark">👻</span><div><strong>Spectre</strong><small>Control Center</small></div></div>
-            <div class="guild-name">
-                {% if guild['icon'] %}<img src="{{ guild['icon'] }}" alt="">{% else %}<span class="guild-fallback">{{ guild['name'][0] }}</span>{% endif %}
-                <div><strong>{{ guild['name'] }}</strong><small>{{ guild['member_count'] }} عضو</small></div>
-            </div>
-            <div class="nav-scroll">
-            {% for label, slug in tabs %}
-            <a class="nav-item {% if slug == active_tab %}active{% endif %}" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab=slug) }}"><span>{{ label.split(' ')[0] }}</span><em>{{ label.split(' ', 1)[1] if ' ' in label else label }}</em></a>
-            {% endfor %}
-            </div>
-            <a class="back-link" href="{{ url_for('guild_picker') }}">↩ رجوع للسيرفرات</a>
-        </aside>
-        <main class="content">
-            <header class="topbar"><a href="{{ url_for('guild_picker') }}" class="mobile-back">← السيرفرات</a><div class="topbar-title">{{ guild['name'] }}</div><div class="topbar-actions"><span class="online-pill"><i></i> Online</span><a href="{{ url_for('logout') }}" class="logout-link">خروج</a></div></header>
-            {% include template %}
-        </main>
+<div class="glow-bg"></div>
+<div class="dashboard-layout v3-layout">
+  <aside class="sidebar v3-sidebar">
+    <div class="brand-mini"><span class="brand-mark">👻</span><div><strong>Spectre</strong><small>Server Control Center</small></div></div>
+    <div class="guild-name">
+      {% if guild['icon'] %}<img src="{{ guild['icon'] }}" alt="">{% else %}<span class="guild-fallback">{{ guild['name'][0] }}</span>{% endif %}
+      <div><strong>{{ guild['name'] }}</strong><small>{{ guild['member_count'] }} عضو · متصل</small></div>
     </div>
-    <div class="toast" id="toast"></div>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <div class="nav-scroll v3-nav">
+      {% for group_name, items in nav_groups %}
+      <div class="nav-group"><div class="nav-group-title">{{ group_name }}</div>
+        {% for icon, label, slug in items %}<a class="nav-item {% if slug == active_tab %}active{% endif %}" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab=slug) }}"><span>{{ icon }}</span><em>{{ label }}</em></a>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <a class="back-link" href="{{ url_for('guild_picker') }}">↩ تبديل السيرفر</a>
+  </aside>
+  <main class="content v3-content">
+    <header class="topbar v3-topbar"><a href="{{ url_for('guild_picker') }}" class="mobile-back">← السيرفرات</a><div class="topbar-breadcrumb"><span>Spectre</span><b>/</b><strong>{{ guild['name'] }}</strong></div><div class="topbar-actions"><span class="online-pill"><i></i> Online</span><a href="{{ url_for('logout') }}" class="logout-link">خروج</a></div></header>
+    {% include template %}
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

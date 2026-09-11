@@ -61,7 +61,7 @@ intents.bans = True
 
 ALLOWED_MENTIONS = discord.AllowedMentions(roles=True, users=True, everyone=False)
 DASHBOARD_COMMAND_MARKER = "\u2063spectre-dashboard:"
-BOT_BUILD_ID = "2026-09-11-spectre-premium-dashboard-final"
+BOT_BUILD_ID = "2026-09-11-dm-command-lock-restore-version-1"
 DEFAULT_QURAN_RADIO_STREAM_URL = radio.DEFAULT_QURAN_RADIO_STREAM_URL
 radio_manager = radio.RadioManager()
 
@@ -216,24 +216,26 @@ bot = SpectreBot(command_prefix=dynamic_prefix, intents=intents, allowed_mention
 
 @bot.check
 async def _guild_commands_only(ctx: commands.Context) -> bool:
-    """حارس موحّد: لا أوامر في الخاص، ويمكن تعطيل أي أمر لكل سيرفر من الداشبورد."""
+    """Spectre is a server-installed bot: never execute commands in DMs."""
     if ctx.guild is None:
         raise commands.NoPrivateMessage()
-    command_name = getattr(ctx.command, "qualified_name", "")
+    command_name = getattr(ctx.command, "name", "")
     if command_name and not db.is_command_enabled(ctx.guild.id, command_name):
-        raise commands.CheckFailure("هذا الأمر معطّل من لوحة التحكم.")
+        raise commands.CheckFailure("هذا الأمر معطّل من إعدادات السيرفر.")
     return True
 
 
 @bot.tree.interaction_check
 async def _slash_command_guard(interaction: discord.Interaction) -> bool:
-    """يمنع أوامر Slash في الخاص، ويطبّق تعطيل الأوامر لكل سيرفر قبل التنفيذ."""
+    # Discord should already hide guild_only commands from DMs; this is the
+    # final runtime guard for stale clients/direct interaction payloads.
     if interaction.guild is None:
         return False
     command = getattr(interaction, "command", None)
-    command_name = getattr(command, "qualified_name", "") or getattr(command, "name", "")
-    if command_name and not db.is_command_enabled(interaction.guild.id, command_name):
-        await interaction.response.send_message("⛔ هذا الأمر معطّل من إعدادات Spectre لهذا السيرفر.", ephemeral=True)
+    name = getattr(command, "name", "")
+    if name and not db.is_command_enabled(interaction.guild.id, name):
+        if not interaction.response.is_done():
+            await interaction.response.send_message("هذا الأمر معطّل من إعدادات السيرفر.", ephemeral=True)
         return False
     return True
 
@@ -927,13 +929,11 @@ class TicketCloseView(discord.ui.View):
             await interaction.response.send_message("❌ لا أستطيع إغلاق هذه القناة.", ephemeral=True)
             return
         owner_id = None
-        topic = interaction.channel.topic or ""
-        for marker in ("ticket-owner:", "workflow-ticket-owner:"):
-            if marker in topic:
-                raw_owner = topic.split(marker, 1)[1].split("|", 1)[0]
-                if raw_owner.isdigit():
-                    owner_id = int(raw_owner)
-                    break
+        if interaction.channel.topic and interaction.channel.topic.startswith("ticket-owner:"):
+            try:
+                owner_id = int(interaction.channel.topic.split(":", 1)[1])
+            except ValueError:
+                pass
         can_close = is_staff_member(interaction.user) or interaction.user.id == owner_id
         if not can_close:
             await interaction.response.send_message("❌ فقط صاحب التذكرة أو الإدارة يستطيع الإغلاق.", ephemeral=True)
@@ -1100,26 +1100,15 @@ class CustomWorkflowModal(discord.ui.Modal):
         await interaction.response.defer(ephemeral=True)
         if isinstance(interaction.user, discord.Member) and await member_is_blocked(interaction.user, "blocked_application_role_ids"):
             await interaction.followup.send("⛔ لا يمكنك إرسال تقديم بهذه الرتبة.", ephemeral=True); return
-        configured_channel_id = self.config.get("logChannelId") or self.config.get("targetChannelId")
-        if not configured_channel_id:
-            configured_channel_id = (await db_call(db.get_guild_settings, interaction.guild.id)).get("review_channel_id")
-        channel_id = str(configured_channel_id or "")
+        channel_id = str(self.config.get("logChannelId") or self.config.get("targetChannelId") or "")
         target = safe_channel(interaction.guild, int(channel_id) if channel_id.isdigit() else 0)
         if not isinstance(target, discord.TextChannel):
             await interaction.followup.send("⚠️ لم يتم تحديد قناة استقبال الطلبات.", ephemeral=True); return
-        answer_map = {item.label: item.value for item in self.children if isinstance(item, discord.ui.TextInput)}
-        answers = "\n\n".join(f"**{label}**\n{value}" for label, value in answer_map.items())
-        position = str(self.config.get("position") or self.config.get("title") or "نموذج مخصص")[:80]
-        application_id = await db_call(db.create_custom_application, interaction.guild.id, interaction.user.id, answer_map, position)
+        answers = "\n\n".join(f"**{item.label}**\n{item.value}" for item in self.children if isinstance(item, discord.ui.TextInput))
         content = configured_role_mentions(interaction.guild, self.config, "applicationReviewRoleIds") or None
-        embed = workflow_embed({**self.config, "title": f"📋 {self.config.get('title', 'تقديم جديد')} — #{application_id}", "description": f"**المتقدم:** {interaction.user.mention}\n\n{answers}"})
-        try:
-            message = await target.send(content=content or None, embed=embed, view=ReviewActionView(application_id))
-            await db_call(db.set_application_message, application_id, message.id)
-        except (discord.Forbidden, discord.HTTPException) as error:
-            await interaction.followup.send(f"❌ تعذّر إرسال الطلب للإدارة: {error}", ephemeral=True)
-            return
-        await interaction.followup.send(f"✅ تم إرسال التقديم للإدارة برقم #{application_id}.", ephemeral=True)
+        embed = workflow_embed({**self.config, "description": f"**المتقدم:** {interaction.user.mention}\n\n{answers}"})
+        await target.send(content=content or None, embed=embed, view=ReviewActionView(0))
+        await interaction.followup.send("✅ تم إرسال التقديم للإدارة.", ephemeral=True)
 
 
 def build_custom_workflow_view(guild_id: int, workflow_type: str, config: dict[str, Any]) -> discord.ui.View:
@@ -1185,11 +1174,7 @@ def build_panel_view(guild_id: int, config: dict[str, Any]) -> discord.ui.View:
             elif selected_action == "open_application":
                 if isinstance(interaction.user, discord.Member) and await member_is_blocked(interaction.user, "blocked_application_role_ids"):
                     await interaction.response.send_message("⛔ لا يمكنك إرسال تقديم بهذه الرتبة.", ephemeral=True); return
-                application_config = dict(config)
-                for key in ("fields", "logChannelId", "applicationReviewRoleIds", "position", "title"):
-                    if key in selected_item:
-                        application_config[key] = selected_item[key]
-                await interaction.response.send_modal(CustomWorkflowModal("application", application_config))
+                await interaction.response.send_modal(StaffApplyModal())
             elif selected_action == "create_ticket":
                 ticket_config = dict(config)
                 # كل خيار في اللوحة يمكنه الآن امتلاك توجيهه الخاص، كما في لوحات الدعم الحديثة.
