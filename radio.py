@@ -41,14 +41,19 @@ def ensure_opus_loaded() -> str:
                 print(f"[QuranRadio] Using Opus: {candidate}")
                 return str(candidate)
     raise RuntimeError("Opus library not found; expected bin/libopus.so.0 or OPUS_PATH")
-# مصدر البث المباشر الحالي لإذاعة القرآن الكريم السعودية. المصدر المنشور
-# حالياً هو مسار srpksaquranradio، ونُبقي المسار الآخر كـ fallback لأن روابط
-# HLS قد تتبدل أو تتعطل مؤقتاً.
-DEFAULT_QURAN_RADIO_STREAM_URL = "http://m.live.net.sa:1935/live/quransa/playlist.m3u8"
+# رابط "chunks.m3u8" القديم أصبح لا يستجيب (404) وهو سبب مشكلة توقف الإذاعة.
+# الروابط بصيغة HLS (playlist.m3u8) تتطلب طلبات HTTP متكررة لكل مقطع صغير،
+# وهذا أكثر عرضة لأخطاء "End of file" مع شبكات استضافة معينة (كل مقطع قد
+# يفشل بشكل مستقل). لذلك نجعل الأساسي الآن رابط بث مستمر بسيط (اتصال HTTP
+# واحد متواصل، بلا تجزئة) من qurango.net — مصدر معروف ومستخدم فعلياً بمشاريع
+# بث حقيقية (سكربتات إعادة بث مباشر لتيليجرام تعمل 24/7)، وهذا النمط أكثر
+# استقراراً بكثير من HLS مع معظم بيئات الاستضافة. نُبقي روابط kwikmotion
+# القديمة كخيارات احتياطية إضافية لو تعطّل هذا المصدر لأي سبب.
+DEFAULT_QURAN_RADIO_STREAM_URL = "https://backup.qurango.net/radio/tarateel"
 DEFAULT_QURAN_RADIO_FALLBACK_URLS = [
     DEFAULT_QURAN_RADIO_STREAM_URL,
-    "https://live.kwikmotion.com/sbrksaquranradiolive/srpksaquranradio/playlist.m3u8",
     "https://live.kwikmotion.com/sbrksaquranradiolive/ksaquranradio/playlist.m3u8",
+    "https://live.kwikmotion.com/sbrksaquranradiolive/srpksaquranradio/playlist.m3u8",
 ]
 
 
@@ -81,27 +86,7 @@ class RadioManager:
                     print(f"[QuranRadio] Could not set FFmpeg executable bit: {error}")
                 if os.access(candidate, os.X_OK):
                     return str(candidate)
-
-        # Do not ship a 40MB+ FFmpeg archive with the bot. static-ffmpeg is a tiny
-        # Python package and downloads the correct platform binary lazily on first
-        # radio use, without root permissions. This keeps the project well below
-        # GitHub's 25MB single-file limit while preserving a self-contained radio
-        # fallback on hosts that do not provide FFmpeg.
-        try:
-            from static_ffmpeg import run as static_ffmpeg_run
-
-            ffmpeg_path, _ffprobe_path = static_ffmpeg_run.get_or_fetch_platform_executables_else_raise()
-            if ffmpeg_path and Path(ffmpeg_path).is_file():
-                try:
-                    Path(ffmpeg_path).chmod(Path(ffmpeg_path).stat().st_mode | 0o111)
-                except OSError:
-                    pass
-                print(f"[QuranRadio] Using lazy static FFmpeg: {ffmpeg_path}", flush=True)
-                return str(ffmpeg_path)
-        except Exception as error:
-            print(f"[QuranRadio] static-ffmpeg unavailable: {type(error).__name__}: {error}", flush=True)
-
-        raise FileNotFoundError("FFmpeg not found; install FFmpeg or allow static-ffmpeg to download its platform binary")
+        raise FileNotFoundError("FFmpeg not found; expected a system ffmpeg, bin/ffmpeg, or FFMPEG_PATH")
 
     @staticmethod
     def resolve_urls(url: str | None = None) -> list[str]:
@@ -153,7 +138,7 @@ class RadioManager:
         # بسرعة بدون الحاجة لتحليل مسبق كبير).
         before_options = (
             "-nostdin -user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36\" "
-            "-rw_timeout 15000000 "
+            "-rw_timeout 20000000 "
             "-reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_on_network_error 1 "
             "-reconnect_on_http_error 4xx,5xx -reconnect_delay_max 5 -thread_queue_size 1024 "
             "-protocol_whitelist file,http,https,tcp,tls,crypto"
@@ -180,23 +165,15 @@ class RadioManager:
             # استهلاك المعالج بشكل كبير جداً (10 هو الأقصى، ويعني ترميز مستمر
             # بأعلى تعقيد ممكن طوال مدة تشغيل الراديو بأكمله). خفّضناها لـ 5
             # (توازن ممتاز وموصى به لبث مباشر Real-time) بعد أن تسبب استخدام
-            # القيم العالية بتجاوز حصة المعالج المسموحة على استضافات مجانية
+            # القيمة القصوى بتجاوز حصة المعالج المسموحة على استضافات مجانية
             # صارمة (مثل Wispbyte) وإيقاف السيرفر تلقائياً — الفرق السمعي بين
             # 10 و5 غير محسوس تقريباً على بترست 128k، لكن الفرق باستهلاك
             # المعالج كبير جداً.
-            try:
-                bitrate = max(48, min(int(os.getenv("QURAN_RADIO_BITRATE", "96")), 128))
-            except ValueError:
-                bitrate = 96
-            try:
-                compression = max(0, min(int(os.getenv("QURAN_RADIO_OPUS_COMPRESSION_LEVEL", "3")), 10))
-            except ValueError:
-                compression = 3
             source = discord.FFmpegOpusAudio(
                 str(job["url"]),
                 executable=executable,
                 before_options=before_options,
-                options=f"{common_options} -ar 48000 -ac 2 -b:a {bitrate}k -vbr on -compression_level {compression} -application audio -loglevel warning",
+                options=f"{common_options} -ar 48000 -ac 2 -b:a 128k -vbr on -compression_level 5 -application audio -loglevel warning",
             )
 
         loop = asyncio.get_running_loop()
@@ -205,16 +182,7 @@ class RadioManager:
             if not job.get("stopped"):
                 asyncio.run_coroutine_threadsafe(self._recover(guild, job, error), loop)
 
-        try:
-            voice.play(source, after=after)
-        except Exception as error:
-            print(f"[QuranRadio] voice.play failed: {type(error).__name__}: {error}", flush=True)
-            try:
-                source.cleanup()
-            except Exception:
-                pass
-            asyncio.create_task(self._recover(guild, job, error))
-            raise
+        voice.play(source, after=after)
 
     async def _recover(self, guild: discord.Guild, job: dict[str, Any], error: Exception | None) -> None:
         if job.get("stopped") or self.jobs.get(guild.id) is not job:

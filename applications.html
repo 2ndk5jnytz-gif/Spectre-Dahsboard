@@ -1,28 +1,76 @@
-<div class="page-intro">
-  <div><div class="eyebrow">APPLICATIONS / REVIEW QUEUE</div><div class="tab-title">📝 مركز التقديمات</div><div class="tab-desc">أنشئ مسار تقديم حقيقي: نموذج → طلب محفوظ → طابور مراجعة → قبول أو رفض مع سبب.</div></div>
-  <span class="live-indicator"><i></i> {{ application_counts.pending }} طلب قيد المراجعة</span>
+<div class="tab-title">🛡️ التقديم للإدارة</div>
+<div class="tab-desc">اضبط زر التقديم وانشره — يدعم رفع صورة من رابط للـ Embed.</div>
+
+<div class="card">
+    <h3>قناة مراجعة الطلبات</h3>
+    <div class="field">
+        <label>القناة التي تصل إليها التقديمات الجديدة</label>
+        <select id="review-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}" {% if settings['review_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="saveReviewChannel()">💾 حفظ</button>
 </div>
 
-<div class="stats-grid premium-stats">
-  <div class="stat-card"><div class="stat-icon">📚</div><div><div class="stat-label">إجمالي الطلبات</div><div class="stat-value">{{ application_counts.total }}</div></div></div>
-  <div class="stat-card"><div class="stat-icon">⏳</div><div><div class="stat-label">قيد المراجعة</div><div class="stat-value">{{ application_counts.pending }}</div></div></div>
-  <div class="stat-card"><div class="stat-icon">✅</div><div><div class="stat-label">مقبولة</div><div class="stat-value">{{ application_counts.accepted }}</div></div></div>
-  <div class="stat-card"><div class="stat-icon">❌</div><div><div class="stat-label">مرفوضة</div><div class="stat-value">{{ application_counts.rejected }}</div></div></div>
+<div class="card">
+    <h3>نشر زر التقديم</h3>
+    <div class="row">
+        <div class="field">
+            <label>الإيموجي</label>
+            <select id="apply-emoji">
+                <option value="🛠️">🛠️ (افتراضي)</option>
+                {% for emoji in guild['emojis'] %}
+                <option value="{{ '<a:' if emoji['animated'] else '<:' }}{{ emoji['name'] }}:{{ emoji['id'] }}>">{{ emoji['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label>لون الزر</label>
+            <select id="apply-style">
+                <option value="blurple">بنفسجي</option>
+                <option value="success">أخضر</option>
+                <option value="danger">أحمر</option>
+                <option value="grey">رمادي</option>
+            </select>
+        </div>
+    </div>
+    <div class="field">
+        <label>عنوان الرسالة</label>
+        <input type="text" id="apply-title" value="التقديم للإدارة 🛡️">
+    </div>
+    <div class="field">
+        <label>الوصف</label>
+        <textarea id="apply-desc">هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.</textarea>
+    </div>
+    <div class="field">
+        <label>رابط صورة (اختياري)</label>
+        <input type="text" id="apply-image" placeholder="https://...">
+    </div>
+    <div class="field">
+        <label>القناة</label>
+        <select id="apply-channel">
+            {% for channel in guild['channels'] %}
+            <option value="{{ channel['id'] }}">#{{ channel['name'] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button class="btn btn-gold" onclick="publishApplyPanel()">🚀 نشر الآن على ديسكورد</button>
 </div>
 
-<div class="card workflow-card">
-  <div class="card-title-row"><div><span class="eyebrow">WORKFLOW</span><h3>مسار الطلب</h3><small>Member → Form → Review Queue → Decision</small></div><span class="mini-tag">LIVE</span></div>
-  <div class="workflow-steps"><div class="step active"><b>01</b><span>النموذج</span></div><i>←</i><div class="step active"><b>02</b><span>الحفظ والطابور</span></div><i>←</i><div class="step active"><b>03</b><span>قرار الإدارة</span></div></div>
-</div>
-
-<div class="split-cards application-layout">
-  <div class="card">
-    <div class="card-title-row"><div><h3>قناة المراجعة</h3><small>كل طلب جديد يُرسل هنا مع أزرار القبول والرفض.</small></div><span class="mini-tag">REVIEW</span></div>
-    <div class="field"><label>قناة استقبال الطلبات</label><select id="review-channel">{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}" {% if settings['review_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>{% endfor %}</select></div>
-    <button class="btn btn-gold" onclick="saveReviewChannel()">💾 حفظ القناة</button>
-  </div>
-  <div class="card feature-card"><span class="feature-icon">🧠</span><div><h3>نماذج مخصصة</h3><p>Workflow Studio يدعم حتى 5 أسئلة Modal في Discord، وكل إجابة مخصصة تُحفظ ضمن طلب فعلي برقم مرجعي.</p><a class="inline-link" href="{{ url_for('guild_dashboard', guild_id=guild_id, tab='panel_builder') }}">تصميم لوحة التقديم ←</a></div></div>
-</div>
-
-<div class="card info-card"><h3>🔎 كيف يعمل النظام؟</h3><p>عند إرسال نموذج مخصص، ينشئ Spectre طلبًا جديدًا في قاعدة البيانات، يرسل بطاقة المراجعة للقناة المحددة، ويربط أزرار القبول والرفض برقم الطلب نفسه حتى لا تختلط الطلبات بعد إعادة التشغيل.</p></div>
-<script>function saveReviewChannel(){saveSettings({review_channel_id:document.getElementById('review-channel').value});}</script>
+<script>
+function saveReviewChannel() {
+    saveSettings({ review_channel_id: document.getElementById("review-channel").value });
+}
+async function publishApplyPanel() {
+    await callAction("apply-panel", {
+        channel_id: document.getElementById("apply-channel").value,
+        emoji: document.getElementById("apply-emoji").value,
+        style: document.getElementById("apply-style").value,
+        title: document.getElementById("apply-title").value,
+        description: document.getElementById("apply-desc").value,
+        image_url: document.getElementById("apply-image").value,
+    });
+}
+</script>

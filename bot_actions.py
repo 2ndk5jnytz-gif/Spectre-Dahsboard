@@ -14,7 +14,6 @@ Wispbyte)، حيث كان يصعب أو يستحيل جعل عمليتين من�
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import json
 from typing import Any
 
 import discord
@@ -96,26 +95,13 @@ async def publish_ticket_panel(bot: Any, guild_id: int, payload: dict[str, Any])
     embed = discord.Embed(
         title=payload.get("title") or "مركز المساعدة والدعم",
         description=payload.get("description") or "اضغط الزر في الأسفل لفتح تذكرة خاصة بك.",
-        color=__import__("spectre_bot_latest").parse_color(payload.get("color") or "blurple"),
+        color=discord.Color.blurple(),
     )
-    files = []
-    image_path = payload.get("_image_file_path")
-    thumb_path = payload.get("_thumbnail_file_path")
-    if image_path:
-        image_file = discord.File(image_path, filename="spectre-ticket-image.png")
-        files.append(image_file)
-        embed.set_image(url="attachment://spectre-ticket-image.png")
-    elif payload.get("image_url"):
+    if payload.get("image_url"):
         embed.set_image(url=payload["image_url"])
-    if thumb_path:
-        thumb_file = discord.File(thumb_path, filename="spectre-ticket-thumb.png")
-        files.append(thumb_file)
-        embed.set_thumbnail(url="attachment://spectre-ticket-thumb.png")
-    elif payload.get("thumbnail_url"):
-        embed.set_thumbnail(url=payload["thumbnail_url"])
     view = TicketCreateView(emoji, label, style)
     bot.add_view(view)
-    message = await channel.send(embed=embed, view=view, files=files or discord.utils.MISSING)
+    message = await channel.send(embed=embed, view=view)
     return {"message_id": str(message.id), "channel_id": str(channel.id)}
 
 
@@ -138,12 +124,10 @@ async def publish_apply_panel(bot: Any, guild_id: int, payload: dict[str, Any]) 
     embed = discord.Embed(
         title=payload.get("title") or "التقديم للإدارة 🛡️",
         description=payload.get("description") or "هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.",
-        color=parse_color(payload.get("color") or style),
+        color=parse_color(style),
     )
     if image_url:
         embed.set_image(url=image_url)
-    if payload.get("thumbnail_url"):
-        embed.set_thumbnail(url=payload["thumbnail_url"])
     view = build_apply_view(guild.id, emoji, style)
     bot.add_view(view)
     message = await channel.send(embed=embed, view=view)
@@ -159,56 +143,18 @@ async def send_embed(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[s
 
     from spectre_bot_latest import parse_color
 
-    config = {
-        "title": payload.get("title") or "",
-        "description": payload.get("description") or "",
-        "color": payload.get("color") or "blurple",
-        "url": payload.get("url") or "",
-        "imageUrl": payload.get("image_url") or "",
-        "thumbnailUrl": payload.get("thumbnail_url") or "",
-        "author": payload.get("author") or {},
-        "footer": payload.get("footer") or {},
-        "fields": payload.get("fields") or [],
-    }
-    from spectre_bot_latest import workflow_embed
-    embed = workflow_embed(config)
-    message = await channel.send(content=str(payload.get("content") or "")[:2000] or None, embed=embed)
+    embed = discord.Embed(
+        title=payload.get("title") or None,
+        description=payload.get("description") or "",
+        color=parse_color(payload.get("color") or "blurple"),
+    )
+    if payload.get("image_url"):
+        embed.set_image(url=payload["image_url"])
+    if payload.get("thumbnail_url"):
+        embed.set_thumbnail(url=payload["thumbnail_url"])
+    message = await channel.send(embed=embed)
     return {"message_id": str(message.id)}
 
-
-
-
-# ==================== منشئ اللوحات المتقدمة ====================
-async def publish_custom_panel(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    guild = get_guild(bot, guild_id)
-    channel = guild.get_channel(int(payload.get("channel_id", 0)))
-    if not isinstance(channel, discord.TextChannel):
-        raise ValueError("قناة غير صحيحة.")
-    from spectre_bot_latest import build_panel_view, workflow_embed, ALLOWED_MENTIONS
-    config = dict(payload.get("config") or {})
-    config["title"] = str(config.get("title") or "Spectre")[:256]
-    config["description"] = str(config.get("description") or "")[:4096]
-    config["content"] = str(config.get("content") or "")[:2000]
-    config["buttons"] = [b for b in (config.get("buttons") or []) if isinstance(b, dict)][:25]
-    config["fields"] = [f for f in (config.get("fields") or []) if isinstance(f, dict)][:25]
-    files = []
-    image_path = payload.get("_image_file_path")
-    thumb_path = payload.get("_thumbnail_file_path")
-    if image_path:
-        files.append(discord.File(image_path, filename="spectre-panel-image.png"))
-        config["imageUrl"] = "attachment://spectre-panel-image.png"
-    if thumb_path:
-        files.append(discord.File(thumb_path, filename="spectre-panel-thumb.png"))
-        config["thumbnailUrl"] = "attachment://spectre-panel-thumb.png"
-    message = await channel.send(
-        content=config["content"] or None,
-        embed=workflow_embed(config),
-        view=build_panel_view(guild.id, config) if config["buttons"] else None,
-        allowed_mentions=ALLOWED_MENTIONS,
-        files=files or discord.utils.MISSING,
-    )
-    db.save_panel(guild.id, channel.id, message.id, json.dumps(config, ensure_ascii=False))
-    return {"message_id": str(message.id), "channel_id": str(channel.id)}
 
 # ==================== الرولات الذاتية ====================
 async def create_reaction_role_message(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -371,36 +317,3 @@ async def create_giveaway(bot: Any, guild_id: int, payload: dict[str, Any]) -> d
     await message.add_reaction("🎉")
     db.create_giveaway(guild.id, channel.id, message.id, prize, winners_count, guild.owner_id or 0, ends_at.isoformat())
     return {"message_id": str(message.id)}
-
-# ==================== مركز الأوامر ====================
-def list_commands(bot: Any) -> list[dict[str, str]]:
-    """يعرض الأوامر المسجلة فعلياً في البوت للوحة التحكم، بدون قائمة يدوية منفصلة."""
-    result: list[dict[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    for command in getattr(bot, "commands", []):
-        key = ("prefix", str(command.name))
-        if key in seen:
-            continue
-        seen.add(key)
-        aliases = ", ".join(str(alias) for alias in getattr(command, "aliases", [])[:5])
-        result.append({
-            "name": str(command.name),
-            "kind": "Prefix",
-            "description": str(getattr(command, "help", None) or getattr(command, "description", None) or "بدون وصف"),
-            "usage": f"!{command.name}" + (f" — {aliases}" if aliases else ""),
-        })
-    try:
-        for command in bot.tree.get_commands():
-            key = ("slash", str(command.name))
-            if key in seen:
-                continue
-            seen.add(key)
-            result.append({
-                "name": str(command.name),
-                "kind": "Slash",
-                "description": str(getattr(command, "description", None) or "بدون وصف"),
-                "usage": f"/{command.name}",
-            })
-    except Exception:
-        pass
-    return sorted(result, key=lambda item: (item["kind"], item["name"].casefold()))
