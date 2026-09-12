@@ -41,12 +41,14 @@
     </div>
     <div class="row">
     <div class="field">
-        <label>رابط الصورة الكبيرة</label>
-        <input type="text" id="ticket-image" placeholder="https://...">
+        <label>الصورة الكبيرة</label>
+        <input type="text" id="ticket-image" placeholder="رابط الصورة أو ارفع من الهاتف">
+        <div class="upload-row"><input id="ticket-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('ticket-image'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('ticket-image-file').click()">📱 رفع من الهاتف</button></div>
     </div>
     <div class="field">
-        <label>رابط الصورة المصغرة</label>
-        <input type="text" id="ticket-thumb" placeholder="https://...">
+        <label>الصورة المصغرة</label>
+        <input type="text" id="ticket-thumb" placeholder="رابط الصورة أو ارفع من الهاتف">
+        <div class="upload-row"><input id="ticket-thumb-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('ticket-thumb'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('ticket-thumb-file').click()">📱 رفع من الهاتف</button></div>
     </div>
     </div>
     <div class="field">

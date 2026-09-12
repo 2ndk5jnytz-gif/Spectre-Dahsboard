@@ -21,6 +21,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "xp_max": 25,
     "xp_cooldown_seconds": 60,
     "xp_event_json": "{}",
+    "level_up_image_url": "",
+    "level_up_thumbnail_url": "",
+    "level_ignored_role_ids_json": "[]",
+    "level_excluded_role_ids_json": "[]",
+    "level_remove_role_ids_json": "[]",
+    "level_remove_previous_roles": False,
     "review_channel_id": None,
     "apply_emoji": "🛠️",
     "apply_style": "blurple",
@@ -402,7 +408,7 @@ def get_guild_settings(guild_id: int) -> dict[str, Any]:
         ).fetchall()
 
     integer_keys = {"welcome_channel_id", "level_up_channel_id", "review_channel_id", "ticket_category_id", "xp_min", "xp_max", "xp_cooldown_seconds"}
-    boolean_keys = {"welcome_enabled", "tickets_enabled", "levels_enabled", "faq_enabled"}
+    boolean_keys = {"welcome_enabled", "tickets_enabled", "levels_enabled", "faq_enabled", "level_remove_previous_roles"}
     for row in rows:
         key, value = row["setting_key"], row["setting_value"]
         if key in integer_keys:

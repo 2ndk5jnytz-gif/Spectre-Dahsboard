@@ -1878,6 +1878,9 @@ async def on_message(message: discord.Message) -> None:
     if not settings["levels_enabled"]:
         await bot.process_commands(message)
         return
+    if await member_is_blocked(message.author, "level_ignored_role_ids_json"):
+        await bot.process_commands(message)
+        return
 
     cooldown_seconds = max(5, int(settings.get("xp_cooldown_seconds", 60)))
     if last_xp is None or now - last_xp >= timedelta(seconds=cooldown_seconds):
@@ -1895,17 +1898,59 @@ async def on_message(message: discord.Message) -> None:
     await bot.process_commands(message)
 
 
+def _level_json_list(settings: dict[str, Any], key: str) -> set[int]:
+    raw = settings.get(key, "[]")
+    try:
+        values = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, json.JSONDecodeError):
+        values = []
+    return {int(v) for v in values if str(v).isdigit()} if isinstance(values, list) else set()
+
+
+def _level_role_state(guild: discord.Guild, current_level: int) -> dict[str, Any]:
+    rows = db.get_level_roles(guild.id)
+    mapped = [(int(level), guild.get_role(int(role_id))) for level, role_id in rows]
+    mapped = [(level, role) for level, role in mapped if role is not None]
+    current = [role for level, role in mapped if level == current_level]
+    next_items = [(level, role) for level, role in mapped if level > current_level]
+    next_level, next_role = next_items[0] if next_items else (None, None)
+    return {"current_role": current[-1] if current else None, "next_level": next_level, "next_role": next_role}
+
+
+def render_level_message(template: str, *, guild: discord.Guild, member: discord.Member, level: int, xp: int, granted_roles: list[discord.Role]) -> str:
+    state = _level_role_state(guild, level)
+    current_role = state["current_role"]
+    next_role = state["next_role"]
+    variables = {
+        "user": member.mention, "username": member.name, "display_name": member.display_name,
+        "level": level, "xp": xp, "xp_total": db.total_xp(level, xp),
+        "next_level": state["next_level"] if state["next_level"] is not None else "",
+        "next_role": next_role.mention if next_role else "",
+        "next_role_name": next_role.name if next_role else "",
+        "role": current_role.mention if current_role else "",
+        "role_name": current_role.name if current_role else "",
+        "granted_roles": ", ".join(r.mention for r in granted_roles),
+        "granted_role_names": ", ".join(r.name for r in granted_roles),
+        "role_count": len(granted_roles),
+        "remaining_xp": max(0, db.xp_for_level(level) - xp),
+        "guild": guild.name, "member_count": guild.member_count,
+    }
+    try:
+        return template.format(**variables)
+    except (KeyError, ValueError, IndexError):
+        return f"مبروك {member.mention}! وصلت للفل **{level}**." + (f"\n**الرتبة:** {current_role.mention}" if current_role else "")
+
+
 async def handle_level_up(
-    guild: discord.Guild,
-    member: discord.Member,
-    new_level: int,
-    fallback_channel: discord.abc.Messageable,
+    guild: discord.Guild, member: discord.Member, new_level: int, fallback_channel: discord.abc.Messageable,
 ) -> None:
     settings = await db_call(db.get_guild_settings, guild.id)
+    excluded_roles = _level_json_list(settings, "level_excluded_role_ids_json")
     granted_roles: list[discord.Role] = []
-    # يمنح كل رتبة مقررة حتى المستوى الحالي، حتى لا يفوّت العضو رتبة إذا زادت خبرته كثيراً.
+    # ربط الرتب باللفلات مستقل عن إزالة الرتب. لا يزيل نظام اللفلات أي رتبة
+    # موجودة لدى العضو عند الترقية؛ حذف/تعديل الربط يتم فقط من لوحة التحكم.
     for level, role_id in await db_call(db.get_level_roles, guild.id):
-        if level <= new_level:
+        if level <= new_level and role_id not in excluded_roles:
             role = guild.get_role(role_id)
             if role and role not in member.roles:
                 try:
@@ -1914,30 +1959,24 @@ async def handle_level_up(
                 except discord.Forbidden:
                     pass
 
-    role_text = "\n**الرتب الجديدة:** " + ", ".join(role.mention for role in granted_roles) if granted_roles else ""
-    role_names = ", ".join(role.name for role in granted_roles) if granted_roles else ""
+    xp, _stored_level = await db_call(db.get_user_level, guild.id, member.id)
     template = str(settings.get("level_up_message") or "مبروك {user}! وصلت للفل **{level}**.{role}")
-    try:
-        description = template.format(user=member.mention, username=member.name, display_name=member.display_name, level=new_level, role=role_text, role_name=role_names)
-    except (KeyError, ValueError):
-        description = f"مبروك {member.mention}! وصلت للفل **{new_level}**.{role_text}"
+    description = render_level_message(template, guild=guild, member=member, level=new_level, xp=xp, granted_roles=granted_roles)
     embed = discord.Embed(title="🎉 ترقية لفل جديد", description=description, color=discord.Color.gold())
-    embed.set_thumbnail(url=member.display_avatar.url)
+    custom_image = discord_asset_url(settings.get("level_up_image_url"))
+    custom_thumb = discord_asset_url(settings.get("level_up_thumbnail_url"))
+    if custom_image: embed.set_image(url=custom_image)
+    if custom_thumb: embed.set_thumbnail(url=custom_thumb)
+    else: embed.set_thumbnail(url=member.display_avatar.url)
 
-    if settings["level_up_mode"] == "dm":
-        try:
-            await member.send(embed=embed)
-        except discord.Forbidden:
-            pass
+    if settings.get("level_up_mode") == "dm":
+        try: await member.send(embed=embed)
+        except discord.Forbidden: pass
         return
-
-    channel = safe_channel(guild, settings["level_up_channel_id"])
+    channel = safe_channel(guild, settings.get("level_up_channel_id"))
     target = channel if isinstance(channel, discord.TextChannel) else fallback_channel
-    try:
-        await target.send(embed=embed)
-    except discord.Forbidden:
-        pass
-
+    try: await target.send(embed=embed)
+    except discord.Forbidden: pass
 
 def parse_duration(text: str) -> int | None:
     """يحوّل نصاً مثل '10m' أو '2h' أو '1d' لعدد ثوانٍ. يدعم s/m/h/d
@@ -2461,8 +2500,10 @@ async def adjust_member_xp(ctx: commands.Context, member: discord.Member, amount
         await ctx.send("❌ حدد كمية خبرة غير صفرية (موجبة للزيادة أو سالبة للنقصان).")
         return
     new_level, new_xp = await db_call(db.add_xp_delta, ctx.guild.id, member.id, amount)
+    settings = await db_call(db.get_guild_settings, ctx.guild.id)
+    excluded_roles = _level_json_list(settings, "level_excluded_role_ids_json")
     for level, role_id in await db_call(db.get_level_roles, ctx.guild.id):
-        if level <= new_level:
+        if level <= new_level and role_id not in excluded_roles:
             role = ctx.guild.get_role(role_id)
             if role and role not in member.roles:
                 try:

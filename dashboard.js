@@ -44,3 +44,29 @@ function collectForm(formEl) {
     });
     return data;
 }
+
+async function uploadDashboardImage(inputEl, targetElOrSetter, buttonEl) {
+    const file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('❌ اختر ملف صورة فقط', false); inputEl.value=''; return; }
+    if (file.size > 8 * 1024 * 1024) { showToast('❌ الحد الأقصى للصورة 8MB', false); inputEl.value=''; return; }
+    if (buttonEl) { buttonEl.disabled = true; buttonEl.textContent = '⏳ جارٍ الرفع...'; }
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch(`/dashboard/${GUILD_ID}/upload-image`, {method:'POST', body:form});
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || 'فشل رفع الصورة');
+        if (typeof targetElOrSetter === 'function') targetElOrSetter(result.url);
+        else if (targetElOrSetter) targetElOrSetter.value = result.url;
+        showToast('✅ تم رفع الصورة وحفظ رابطها من Discord', true);
+        if (targetElOrSetter && targetElOrSetter.dispatchEvent) targetElOrSetter.dispatchEvent(new Event('input', {bubbles:true}));
+    } catch (e) { showToast('❌ '+e.message, false); }
+    finally { if (buttonEl) { buttonEl.disabled=false; buttonEl.textContent='📱 رفع من الهاتف'; } inputEl.value=''; }
+}
+
+function imageUploadControls(targetId, setterCode='') {
+    const target = document.getElementById(targetId);
+    if (!target) return '';
+    return `<div class="upload-row"><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" id="${targetId}-file" hidden onchange="uploadDashboardImage(this, ${setterCode || 'document.getElementById(\''+targetId+'\')'}, this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('${targetId}-file').click()">📱 رفع من الهاتف</button></div>`;
+}

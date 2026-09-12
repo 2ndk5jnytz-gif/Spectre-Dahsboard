@@ -318,3 +318,5 @@ th { color: var(--text-dim); font-weight: 600; }
 .chips{display:flex;flex-wrap:wrap;gap:8px}.chips span{padding:6px 10px;border-radius:999px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.2);color:#d7ccff}
 @media(max-width:950px){.builder-grid{grid-template-columns:1fr}.content{max-width:none}}
 @media(max-width:600px){.row>.field{min-width:100%}.btn{padding:11px 18px}.discord-preview{padding:10px}}
+
+.upload-row{display:flex;gap:8px;align-items:center;margin-top:7px}.upload-row .btn{padding:7px 12px;font-size:.82rem}

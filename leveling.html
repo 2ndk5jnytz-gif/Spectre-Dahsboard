@@ -1,101 +1,66 @@
-<div class="tab-title">🏆 اللفلات والخبرة</div>
-<div class="tab-desc">رتب اللفلات، وتعديل/نقل خبرة أي عضو يدوياً.</div>
+<div class="tab-title">🏆 اللفلات والخبرة — نظام متقدم</div>
+<div class="tab-desc">إعداد XP، رسائل الترقية، الصور، الرتب، الرتب المستثناة، الرتب التي تمنع XP، وحذف/استبدال أي رتبة بسهولة.</div>
 
 <div class="card">
-    <h3>تفعيل نظام اللفلات</h3>
-    <div class="row">
-        <div class="field">
-            <label>الحالة</label>
-            <select id="levels-enabled">
-                <option value="1" {% if settings['levels_enabled'] %}selected{% endif %}>مفعّل</option>
-                <option value="0" {% if not settings['levels_enabled'] %}selected{% endif %}>معطّل</option>
-            </select>
-        </div>
-        <div class="field">
-            <label>قناة إعلان الترقية</label>
-            <select id="level-up-channel">
-                {% for channel in guild['channels'] %}
-                <option value="{{ channel['id'] }}" {% if settings['level_up_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
-    <button class="btn btn-gold" onclick="saveLevelSettings()">💾 حفظ</button>
+  <h3>⚙️ إعدادات اللفلات والرسالة</h3>
+  <div class="row">
+    <div class="field"><label>الحالة</label><select id="levels-enabled"><option value="1" {% if settings['levels_enabled'] %}selected{% endif %}>مفعّل</option><option value="0" {% if not settings['levels_enabled'] %}selected{% endif %}>معطّل</option></select></div>
+    <div class="field"><label>مكان رسالة الترقية</label><select id="level-up-mode"><option value="channel" {% if settings['level_up_mode']=='channel' %}selected{% endif %}>قناة محددة</option><option value="current" {% if settings['level_up_mode']=='current' %}selected{% endif %}>القناة الحالية</option><option value="dm" {% if settings['level_up_mode']=='dm' %}selected{% endif %}>خاص العضو (DM)</option></select></div>
+    <div class="field"><label>قناة الترقية</label><select id="level-up-channel"><option value="">— بدون قناة —</option>{% for channel in guild['channels'] %}<option value="{{ channel['id'] }}" {% if settings['level_up_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="field"><label>رسالة الترقية</label><textarea id="level-up-message" maxlength="2500">{{ settings['level_up_message'] }}</textarea></div>
+  <div class="hint">المتغيرات: <code>{user}</code> <code>{username}</code> <code>{display_name}</code> <code>{level}</code> <code>{xp}</code> <code>{xp_total}</code> <code>{next_level}</code> <code>{next_role}</code> <code>{next_role_name}</code> <code>{role}</code> <code>{role_name}</code> <code>{granted_roles}</code> <code>{granted_role_names}</code> <code>{role_count}</code> <code>{remaining_xp}</code> <code>{guild}</code> <code>{member_count}</code>. إذا لم توجد رتبة حالية/قادمة فالمتغير الخاص بها يصبح فارغًا.</div>
+  <div class="row"><div class="field"><label>الصورة الكبيرة</label><input id="level-up-image" value="{{ settings['level_up_image_url'] }}" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="level-up-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('level-up-image'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('level-up-image-file').click()">📱 رفع من الهاتف</button></div></div><div class="field"><label>الصورة المصغرة</label><input id="level-up-thumb" value="{{ settings['level_up_thumbnail_url'] }}" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="level-up-thumb-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('level-up-thumb'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('level-up-thumb-file').click()">📱 رفع من الهاتف</button></div></div></div>
+  <button class="btn btn-gold" onclick="saveLevelSettings()">💾 حفظ إعدادات اللفلات</button>
 </div>
 
 <div class="card">
-    <h3>رتب اللفلات</h3>
-    <table>
-        <thead><tr><th>اللفل</th><th>الرتبة</th></tr></thead>
-        <tbody>
-        {% for level, role_id in level_roles %}
-            <tr><td>{{ level }}</td><td>
-                {% for role in guild['roles'] %}{% if role['id'] == role_id|string %}{{ role['name'] }}{% endif %}{% endfor %}
-            </td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    <div class="row" style="margin-top:16px;">
-        <div class="field"><label>اللفل</label><input type="number" id="new-level" min="1" value="5"></div>
-        <div class="field">
-            <label>الرتبة</label>
-            <select id="new-level-role">
-                {% for role in guild['roles'] %}
-                <option value="{{ role['id'] }}">{{ role['name'] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
-    <button class="btn btn-ghost" onclick="addLevelRole()">➕ إضافة</button>
+  <h3>🎯 رتب اللفلات</h3>
+  <p class="hint">إذا أخطأت في لفل 1 مثلاً، احذف الربط فوراً ثم أضف الرتبة الصحيحة. <b>الرتبة القادمة</b> في المتغيرات هي أول رتبة فعلية مسجلة بعد مستوى العضو، وليس بالضرورة لفل +1.</p>
+  <div class="table-wrap"><table><thead><tr><th>اللفل</th><th>الرتبة</th><th>إجراء</th></tr></thead><tbody>
+  {% for level, role_id in level_roles %}<tr><td><b>{{ level }}</b></td><td>{% for role in guild['roles'] %}{% if role['id'] == role_id|string %}{{ role['name'] }}{% endif %}{% endfor %}</td><td><button class="btn btn-danger" onclick="deleteLevelRole({{ level }})">🗑️ حذف</button></td></tr>{% else %}<tr><td colspan="3" class="muted">لا توجد رتب مربوطة حالياً.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="row" style="margin-top:16px;"><div class="field"><label>اللفل</label><input type="number" id="new-level" min="1" value="1"></div><div class="field"><label>الرتبة</label><select id="new-level-role">{% for role in guild['roles'] %}{% if not role['managed'] %}<option value="{{ role['id'] }}">{{ role['name'] }}</option>{% endif %}{% endfor %}</select></div></div>
+  <button class="btn btn-ghost" onclick="addLevelRole()">➕ إضافة / استبدال رتبة اللفل</button>
 </div>
 
 <div class="card">
-    <h3>تعديل خبرة عضو</h3>
-    <div class="row">
-        <div class="field"><label>آيدي العضو</label><input type="text" id="xp-user-id" placeholder="123456789012345678"></div>
-        <div class="field"><label>الكمية (سالب للنقصان)</label><input type="number" id="xp-amount" value="100"></div>
-    </div>
-    <button class="btn btn-gold" onclick="adjustXp()">تنفيذ</button>
+  <h3>🚫 رتب ممنوعة من منح اللفلات</h3>
+  <p class="hint">هذه الرتب لن يمنحها البوت عبر نظام اللفلات حتى لو كانت مربوطة بمستوى.</p>
+  <select id="level-excluded-roles" multiple size="7" style="width:100%;">{% for role in guild['roles'] %}{% if not role['managed'] %}<option value="{{ role['id'] }}" {% if role['id']|int in level_excluded_roles %}selected{% endif %}>{{ role['name'] }}</option>{% endif %}{% endfor %}</select>
 </div>
 
 <div class="card">
-    <h3>نقل خبرة (حساب محظور ⇦ حساب جديد)</h3>
-    <div class="row">
-        <div class="field"><label>آيدي الحساب القديم</label><input type="text" id="xp-old-id" placeholder="آيدي الحساب المحظور"></div>
-        <div class="field"><label>آيدي الحساب الجديد</label><input type="text" id="xp-new-id" placeholder="آيدي الحساب الجديد"></div>
-    </div>
-    <button class="btn btn-gold" onclick="transferXp()">نقل الخبرة الآن</button>
+  <h3>⛔ رتب تمنع اكتساب XP</h3>
+  <p class="hint">أي عضو يحمل إحدى هذه الرتب لن يحصل على XP من الرسائل، لكن بيانات مستواه الحالية لا تُحذف.</p>
+  <select id="level-ignored-roles" multiple size="7" style="width:100%;">{% for role in guild['roles'] %}{% if not role['managed'] %}<option value="{{ role['id'] }}" {% if role['id']|int in level_ignored_roles %}selected{% endif %}>{{ role['name'] }}</option>{% endif %}{% endfor %}</select>
+</div>
+
+<div class="card">
+  <h3>🧹 رتب تُزال عند الترقية</h3>
+  <p class="hint">اختر الرتب التي يسمح للنظام بإزالتها عند الترقية. إذا تركتها فارغة مع تفعيل الإزالة التلقائية، سيستخدم البوت رتب اللفلات المسجلة لديه.</p>
+  <select id="level-remove-roles" multiple size="7" style="width:100%;">{% for role in guild['roles'] %}{% if not role['managed'] %}<option value="{{ role['id'] }}" {% if role['id']|int in level_remove_roles %}selected{% endif %}>{{ role['name'] }}</option>{% endif %}{% endfor %}</select>
+  <button class="btn btn-ghost" onclick="saveLevelRoleLists()">💾 حفظ قوائم الرتب</button>
+</div>
+
+<div class="card">
+  <h3>✏️ تعديل خبرة عضو</h3>
+  <div class="row"><div class="field"><label>آيدي العضو</label><input type="text" id="xp-user-id"></div><div class="field"><label>الكمية (سالب للنقصان)</label><input type="number" id="xp-amount" value="100"></div></div>
+  <button class="btn btn-gold" onclick="adjustXp()">تنفيذ</button>
+</div>
+
+<div class="card">
+  <h3>🔄 نقل خبرة</h3>
+  <div class="row"><div class="field"><label>آيدي الحساب القديم</label><input type="text" id="xp-old-id"></div><div class="field"><label>آيدي الحساب الجديد</label><input type="text" id="xp-new-id"></div></div>
+  <button class="btn btn-gold" onclick="transferXp()">نقل الخبرة الآن</button>
 </div>
 
 <script>
-function saveLevelSettings() {
-    saveSettings({
-        levels_enabled: document.getElementById("levels-enabled").value,
-        level_up_channel_id: document.getElementById("level-up-channel").value,
-    });
-}
-async function addLevelRole() {
-    const response = await fetch(`/dashboard/${GUILD_ID}/level-roles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            level: document.getElementById("new-level").value,
-            role_id: document.getElementById("new-level-role").value,
-        }),
-    });
-    const result = await response.json();
-    showToast(result.ok ? "✅ تمت الإضافة، حدّث الصفحة لرؤيتها." : "❌ فشل", result.ok);
-}
-async function adjustXp() {
-    await callAction("xp-adjust", {
-        user_id: document.getElementById("xp-user-id").value,
-        amount: parseInt(document.getElementById("xp-amount").value, 10),
-    });
-}
-async function transferXp() {
-    await callAction("xp-transfer", {
-        old_user_id: document.getElementById("xp-old-id").value,
-        new_user_id: document.getElementById("xp-new-id").value,
-    });
-}
+function selectedValues(id){ return Array.from(document.getElementById(id).selectedOptions).map(o=>o.value); }
+function saveLevelSettings(){ saveSettings({levels_enabled:document.getElementById('levels-enabled').value,level_up_mode:document.getElementById('level-up-mode').value,level_up_channel_id:document.getElementById('level-up-channel').value||null,level_up_message:document.getElementById('level-up-message').value,level_up_image_url:document.getElementById('level-up-image').value.trim(),level_up_thumbnail_url:document.getElementById('level-up-thumb').value.trim()}); }
+function saveLevelRoleLists(){ saveSettings({level_excluded_role_ids_json:JSON.stringify(selectedValues('level-excluded-roles')),level_ignored_role_ids_json:JSON.stringify(selectedValues('level-ignored-roles')),level_remove_role_ids_json:JSON.stringify(selectedValues('level-remove-roles'))}); }
+async function addLevelRole(){ const r=await fetch(`/dashboard/${GUILD_ID}/level-roles`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:document.getElementById('new-level').value,role_id:document.getElementById('new-level-role').value})}); const j=await r.json(); showToast(j.ok?'✅ تم الحفظ.':'❌ '+(j.error||'فشل الحفظ'),j.ok); if(j.ok) location.reload(); }
+async function deleteLevelRole(level){ if(!confirm(`حذف ربط اللفل ${level}؟`)) return; const r=await fetch(`/dashboard/${GUILD_ID}/level-roles/${level}`,{method:'DELETE'}); const j=await r.json(); showToast(j.ok?'🗑️ تم حذف الربط.':'❌ '+(j.error||'فشل'),j.ok); if(j.ok) location.reload(); }
+async function adjustXp(){ await callAction('xp-adjust',{user_id:document.getElementById('xp-user-id').value,amount:parseInt(document.getElementById('xp-amount').value,10)}); }
+async function transferXp(){ await callAction('xp-transfer',{old_user_id:document.getElementById('xp-old-id').value,new_user_id:document.getElementById('xp-new-id').value}); }
 </script>

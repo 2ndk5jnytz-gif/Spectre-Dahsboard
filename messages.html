@@ -13,8 +13,8 @@
     <div class="field"><label>العنوان</label><input id="msg-title" type="text" maxlength="256"></div>
     <div class="field"><label>الوصف</label><textarea id="msg-description" maxlength="4096" placeholder="Markdown مدعوم"></textarea></div>
     <div class="row">
-      <div class="field"><label>رابط الصورة الكبيرة</label><input id="msg-image" type="text" placeholder="https://..."></div>
-      <div class="field"><label>رابط الصورة المصغرة</label><input id="msg-thumb" type="text" placeholder="https://..."></div>
+      <div class="field"><label>الصورة الكبيرة</label><input id="msg-image" type="text" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="msg-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('msg-image'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('msg-image-file').click()">📱 رفع من الهاتف</button></div></div>
+      <div class="field"><label>الصورة المصغرة</label><input id="msg-thumb" type="text" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="msg-thumb-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('msg-thumb'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('msg-thumb-file').click()">📱 رفع من الهاتف</button></div></div>
     </div>
     <div class="row">
       <div class="field"><label>اسم الكاتب</label><input id="msg-author" type="text"></div>
@@ -126,8 +126,8 @@ function renderBuilder(){
         <div class="field"><label>نص الرد</label><textarea oninput="messageButtons[${i}].responseMessage=this.value">${esc(b.responseMessage)}</textarea></div>
         <div class="row">
           <div class="field"><label>لون الرد</label><input value="${esc(b.responseColor)}" oninput="messageButtons[${i}].responseColor=this.value"></div>
-          <div class="field"><label>صورة الرد</label><input value="${esc(b.responseImageUrl)}" oninput="messageButtons[${i}].responseImageUrl=this.value"></div>
-          <div class="field"><label>مصغرة الرد</label><input value="${esc(b.responseThumbnailUrl)}" oninput="messageButtons[${i}].responseThumbnailUrl=this.value"></div>
+          <div class="field"><label>صورة الرد</label><input value="${esc(b.responseImageUrl)}" oninput="messageButtons[${i}].responseImageUrl=this.value"><div class="upload-row"><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,url=>{messageButtons[${i}].responseImageUrl=url;renderBuilder()},this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="this.previousElementSibling.click()">📱 رفع من الهاتف</button></div></div>
+          <div class="field"><label>مصغرة الرد</label><input value="${esc(b.responseThumbnailUrl)}" oninput="messageButtons[${i}].responseThumbnailUrl=this.value"><div class="upload-row"><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,url=>{messageButtons[${i}].responseThumbnailUrl=url;renderBuilder()},this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="this.previousElementSibling.click()">📱 رفع من الهاتف</button></div></div>
         </div>
       `:""}
     </div>`).join("");

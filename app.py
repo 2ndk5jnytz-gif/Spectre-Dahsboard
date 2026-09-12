@@ -239,7 +239,15 @@ def guild_dashboard(guild_id: str, tab: str = "general"):
     settings = db.get_guild_settings(int(guild_id))
     context = {"guild": overview, "guild_id": guild_id, "tabs": TABS, "active_tab": tab, "settings": settings}
     if tab == "leveling":
+        import json as json_module
         context["level_roles"] = db.get_level_roles(int(guild_id))
+        def _ids(key):
+            try: raw = json_module.loads(settings.get(key) or "[]")
+            except (TypeError, json_module.JSONDecodeError): raw = []
+            return [int(x) for x in raw if str(x).isdigit()] if isinstance(raw, list) else []
+        context["level_ignored_roles"] = _ids("level_ignored_role_ids_json")
+        context["level_excluded_roles"] = _ids("level_excluded_role_ids_json")
+        context["level_remove_roles"] = _ids("level_remove_role_ids_json")
     if tab == "auto_responses":
         context["auto_responses"] = db.get_auto_responses(int(guild_id))
     if tab == "antinuke":
@@ -299,6 +307,15 @@ def save_level_role(guild_id: str):
     except (KeyError, ValueError):
         return jsonify({"ok": False, "error": "بيانات غير صحيحة"}), 400
     db.add_level_role(int(guild_id), level, role_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/<guild_id>/level-roles/<int:level>", methods=["DELETE"])
+@login_required
+def delete_level_role(guild_id: str, level: int):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    db.remove_level_role(int(guild_id), level)
     return jsonify({"ok": True})
 
 
@@ -614,6 +631,24 @@ _ACTION_COROUTINES = {
     "giveaway": bot_actions.create_giveaway,
 }
 
+
+
+@app.route("/dashboard/<guild_id>/upload-image", methods=["POST"])
+@login_required
+def upload_image(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename:
+        return jsonify({"ok": False, "error": "اختر صورة أولاً."}), 400
+    data = uploaded.read()
+    try:
+        result = call_bot(bot_actions.upload_dashboard_image(_bot_instance, int(guild_id), uploaded.filename, uploaded.mimetype or "", data))
+        return jsonify({"ok": True, **result})
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+    except Exception as error:
+        return jsonify({"ok": False, "error": f"تعذّر رفع الصورة: {error}"}), 500
 
 @app.route("/dashboard/<guild_id>/action/<action_name>", methods=["POST"])
 @login_required

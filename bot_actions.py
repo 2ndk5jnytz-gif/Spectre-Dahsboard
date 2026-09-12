@@ -186,6 +186,38 @@ async def send_embed(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[s
     return {"message_id": str(message.id), "channel_id": str(channel.id)}
 
 
+
+# ==================== رفع صور الداشبورد ====================
+async def upload_dashboard_image(bot: Any, guild_id: int, filename: str, content_type: str, data: bytes) -> dict[str, Any]:
+    """يرفع صورة اختارها المستخدم من هاتفه إلى قناة أصول خاصة بالبوت، ثم يعيد رابط Discord CDN.
+    نحتفظ برسالة الصورة حتى يبقى الرابط صالحاً بدلاً من الاعتماد على قرص Render المؤقت."""
+    guild = get_guild(bot, guild_id)
+    if not content_type.lower().startswith("image/"):
+        raise ValueError("الملف يجب أن يكون صورة.")
+    if len(data) > 8 * 1024 * 1024:
+        raise ValueError("حجم الصورة يجب ألا يتجاوز 8MB.")
+    allowed = {"image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"}
+    if content_type.lower() not in allowed:
+        raise ValueError("الصيغ المدعومة: PNG و JPG و GIF و WEBP.")
+
+    channel = discord.utils.find(lambda c: isinstance(c, discord.TextChannel) and c.name == "spectre-assets", guild.text_channels)
+    if channel is None:
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, read_message_history=True),
+        }
+        try:
+            channel = await guild.create_text_channel("spectre-assets", overwrites=overwrites, reason="قناة أصول صور لوحة تحكم Spectre")
+        except discord.Forbidden:
+            raise ValueError("البوت يحتاج صلاحية Manage Channels لإنشاء قناة الصور الخاصة.")
+    safe_name = (filename or "image.png").replace("/", "_").replace("\\", "_")[:100]
+    file = discord.File(__import__("io").BytesIO(data), filename=safe_name)
+    message = await channel.send(file=file)
+    attachment = message.attachments[0] if message.attachments else None
+    if attachment is None:
+        raise ValueError("تعذّر الحصول على رابط الصورة من ديسكورد.")
+    return {"url": attachment.url, "filename": safe_name}
+
 # ==================== الرولات الذاتية ====================
 async def create_reaction_role_message(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     guild = get_guild(bot, guild_id)

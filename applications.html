@@ -45,8 +45,8 @@
         <textarea id="apply-desc">هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.</textarea>
     </div>
     <div class="row">
-      <div class="field"><label>رابط الصورة الكبيرة</label><input type="text" id="apply-image" placeholder="https://..."></div>
-      <div class="field"><label>رابط الصورة المصغرة</label><input type="text" id="apply-thumb" placeholder="https://..."></div>
+      <div class="field"><label>الصورة الكبيرة</label><input type="text" id="apply-image" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="apply-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('apply-image'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('apply-image-file').click()">📱 رفع من الهاتف</button></div></div>
+      <div class="field"><label>الصورة المصغرة</label><input type="text" id="apply-thumb" placeholder="رابط الصورة أو ارفع من الهاتف"><div class="upload-row"><input id="apply-thumb-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onchange="uploadDashboardImage(this,document.getElementById('apply-thumb'),this.nextElementSibling)"><button type="button" class="btn btn-ghost" onclick="document.getElementById('apply-thumb-file').click()">📱 رفع من الهاتف</button></div></div>
       <div class="field"><label>لون الـ Embed</label><input type="text" id="apply-color" value="#5865F2"></div>
     </div>
     <div class="field">
