@@ -5,6 +5,7 @@ import os
 import runpy
 import shutil
 import stat
+import zipfile
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +13,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "spectre_bot_latest.py"
 REQUIREMENTS = ROOT / "requirements.txt"
+
+DASHBOARD_BUNDLE = ROOT / "dashboard_bundle.zip"
+DASHBOARD_DIR = ROOT / "dashboard"
+
+
+def prepare_dashboard() -> None:
+    """Prepare the Flask dashboard before the bot starts."""
+    if DASHBOARD_BUNDLE.is_file():
+        print("[Spectre] Preparing dashboard files...", flush=True)
+        with zipfile.ZipFile(DASHBOARD_BUNDLE, "r") as bundle:
+            bundle.extractall(ROOT)
+        if not (DASHBOARD_DIR / "app.py").is_file():
+            raise RuntimeError("فشل تجهيز الداشبورد: dashboard/app.py غير موجود.")
+        print("[Spectre] Dashboard files prepared.", flush=True)
+        return
+
+    if (DASHBOARD_DIR / "app.py").is_file():
+        print("[Spectre] Using existing dashboard files.", flush=True)
+        return
+
+    raise FileNotFoundError(
+        f"لم أجد dashboard_bundle.zip أو dashboard/app.py داخل {ROOT}"
+    )
+
 
 
 def prepare_ffmpeg() -> None:
@@ -48,6 +73,7 @@ _REQUIRED_MODULES = {
 # بكل ميزاته النصية بدل التوقف الكامل بسبب اعتمادية صوت اختيارية.
 _CRITICAL_MODULES = {"discord", "dotenv", "aiohttp"}
 _missing = [package for module, package in _REQUIRED_MODULES.items() if importlib.util.find_spec(module) is None]
+prepare_dashboard()
 prepare_ffmpeg()
 
 if _missing:

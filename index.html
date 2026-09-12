@@ -3,15 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spectre — لوحة التحكم</title>
+    <title>Spectre — Control Center</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="landing-body">
     <div class="glow-bg"></div>
-    <div class="landing">
-        <div class="brand">👻 Spectre</div>
-        <div class="brand-sub">لوحة تحكم بوتك بالكامل — من مكان واحد، وبربط فوري مع البوت.</div>
-        <a class="btn btn-gold" href="{{ url_for('login') }}">تسجيل الدخول عبر ديسكورد</a>
-    </div>
+    <main class="landing premium-landing">
+        <div class="landing-badge"><span class="status-dot"></span> SPECTRE CONTROL CENTER</div>
+        <div class="landing-mark">👻</div>
+        <div class="brand">Spectre</div>
+        <div class="brand-sub">مركز تحكم احترافي لإدارة سيرفرات Discord — سريع، واضح، ومصمم ليعمل معك من الجوال.</div>
+        <div class="landing-features"><span>🎫 Tickets</span><span>📝 Applications</span><span>🧩 Workflows</span><span>🛡️ Security</span></div>
+        <a class="btn btn-gold landing-login" href="{{ url_for('login') }}">تسجيل الدخول عبر Discord <b>←</b></a>
+        <small class="landing-note">لا نطلب كلمة مرور Discord — تسجيل الدخول يتم عبر OAuth2.</small>
+    </main>
 </body>
 </html>

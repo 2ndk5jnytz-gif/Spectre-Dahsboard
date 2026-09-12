@@ -8,9 +8,11 @@
 </head>
 <body>
 <div class="glow-bg"></div>
+<div class="mobile-shellbar"><button class="mobile-menu-btn" type="button" onclick="toggleMobileNav()" aria-label="فتح القائمة">☰</button><div class="mobile-brand"><span class="brand-mark">👻</span><strong>Spectre</strong></div><a class="mobile-guild" href="{{ url_for('guild_picker') }}">{{ guild['name'] }}</a></div>
+<div class="mobile-nav-backdrop" id="mobileNavBackdrop" onclick="toggleMobileNav(false)"></div>
 <div class="dashboard-layout v3-layout">
-  <aside class="sidebar v3-sidebar">
-    <div class="brand-mini"><span class="brand-mark">👻</span><div><strong>Spectre</strong><small>Server Control Center</small></div></div>
+  <aside class="sidebar v3-sidebar" id="dashboardSidebar">
+    <div class="brand-mini"><span class="brand-mark">👻</span><div><strong>Spectre</strong><small>Server Control Center</small></div><button class="mobile-close-nav" type="button" onclick="toggleMobileNav(false)">×</button></div>
     <div class="guild-name">
       {% if guild['icon'] %}<img src="{{ guild['icon'] }}" alt="">{% else %}<span class="guild-fallback">{{ guild['name'][0] }}</span>{% endif %}
       <div><strong>{{ guild['name'] }}</strong><small>{{ guild['member_count'] }} عضو · متصل</small></div>

@@ -1,34 +1,33 @@
 <div class="page-intro command-intro">
-  <div><div class="eyebrow">COMMAND CENTER</div><div class="tab-title">⌘ مركز الأوامر</div><div class="tab-desc">كل أوامر Spectre المسجلة فعليًا في البوت، مع البحث السريع وطريقة الاستخدام.</div></div>
-  <div class="live-indicator"><i></i> متصل بالبـوت</div>
+  <div><div class="eyebrow">COMMAND CENTER</div><div class="tab-title">⌘ مركز الأوامر</div><div class="tab-desc">مرجع بصري سريع لكل أوامر Spectre المسجلة فعليًا في البوت.</div></div>
+  <div class="live-indicator"><i></i> {{ command_count }} أمر</div>
 </div>
-
-<div class="command-toolbar card">
-  <div class="command-search"><span>⌕</span><input id="command-search" placeholder="ابحث عن أمر مثل: التذاكر، الحماية، اللفلات..." oninput="filterCommands()"></div>
+<div class="command-toolbar card premium-toolbar">
+  <div class="command-search"><span>⌕</span><input id="command-search" placeholder="ابحث باسم الأمر أو الوصف أو الاستخدام..." oninput="filterCommands()"></div>
   <div class="command-filters" id="command-filters"><button class="filter-chip active" data-kind="all">الكل</button><button class="filter-chip" data-kind="Slash">Slash</button><button class="filter-chip" data-kind="Prefix">Prefix</button></div>
 </div>
-
+<div class="command-meta"><span id="command-results">{{ command_count }} نتيجة</span><span>الأوامر التي تظهر هنا مصدرها البوت نفسه</span></div>
 <div class="command-grid" id="command-grid">
 {% for command in commands_list %}
-<article class="command-card command-managed {% if not command.enabled %}disabled{% endif %}" data-name="{{ (command.name ~ ' ' ~ command.description ~ ' ' ~ command.usage)|lower }}" data-kind="{{ command.kind }}">
+<article class="command-card premium-command" data-name="{{ (command.name ~ ' ' ~ command.description ~ ' ' ~ command.usage)|lower }}" data-kind="{{ command.kind }}">
   <div class="command-card-head"><span class="command-kind {{ command.kind|lower }}">{{ command.kind }}</span><code>{{ command.usage }}</code></div>
   <h3>{{ command.name }}</h3><p>{{ command.description }}</p>
-  <div class="command-card-foot"><span class="command-state">{{ 'مفعّل' if command.enabled else 'معطّل' }}</span><button class="mini-toggle" onclick="toggleCommand(this, '{{ command.name|e }}', {{ 'false' if command.enabled else 'true' }})">{{ 'تعطيل' if command.enabled else 'تفعيل' }}</button></div>
+  <div class="command-footer"><span>⌁ Spectre</span><label class="command-toggle"><input type="checkbox" {% if command.name|lower not in disabled_commands %}checked{% endif %} onchange="toggleCommand('{{ command.name|e }}', this)"><span></span><em>مفعّل</em></label></div>
 </article>
 {% endfor %}
 </div>
 <div id="command-empty" class="empty-state" style="display:none">لا توجد أوامر مطابقة لبحثك.</div>
 <script>
 let commandKind='all';
-function filterCommands(){const q=(document.getElementById('command-search').value||'').toLowerCase().trim();let shown=0;document.querySelectorAll('.command-card').forEach(c=>{const ok=(!q||c.dataset.name.includes(q))&&(commandKind==='all'||c.dataset.kind===commandKind);c.style.display=ok?'':'none';if(ok)shown++;});document.getElementById('command-empty').style.display=shown?'none':'';}
+function filterCommands(){const q=(document.getElementById('command-search').value||'').toLowerCase().trim();let shown=0;document.querySelectorAll('.command-card').forEach(c=>{const ok=(!q||c.dataset.name.includes(q))&&(commandKind==='all'||c.dataset.kind===commandKind);c.style.display=ok?'':'none';if(ok)shown++;});document.getElementById('command-empty').style.display=shown?'none':'';document.getElementById('command-results').textContent=shown+' نتيجة';}
 document.querySelectorAll('.filter-chip').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.filter-chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');commandKind=b.dataset.kind;filterCommands();}));
-async function toggleCommand(btn,name,enabled){
-  btn.disabled=true;
-  const r=await fetch(`/dashboard/${GUILD_ID}/commands/${encodeURIComponent(name)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});
-  const data=await r.json(); btn.disabled=false;
-  if(!data.ok){showToast('❌ '+(data.error||'تعذر تعديل الأمر'),false);return;}
-  const card=btn.closest('.command-card'); card.classList.toggle('disabled',!enabled);
-  card.querySelector('.command-state').textContent=enabled?'مفعّل':'معطّل'; btn.textContent=enabled?'تعطيل':'تفعيل';
-  btn.onclick=()=>toggleCommand(btn,name,!enabled); showToast(enabled?'✅ تم تفعيل الأمر':'⏸️ تم تعطيل الأمر');
+async function toggleCommand(name, input){
+  input.disabled=true;
+  const enabled=input.checked;
+  const result=await fetch(`/dashboard/${GUILD_ID}/command-setting`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:name,enabled})}).then(r=>r.json()).catch(()=>({ok:false,error:'تعذّر الاتصال'}));
+  input.disabled=false;
+  if(!result.ok){input.checked=!enabled;showToast('❌ '+(result.error||'فشل تغيير حالة الأمر'),false);return;}
+  input.parentElement.querySelector('em').textContent=enabled?'مفعّل':'معطّل';
+  showToast(enabled?'✅ تم تفعيل الأمر':'⏸️ تم تعطيل الأمر');
 }
 </script>
