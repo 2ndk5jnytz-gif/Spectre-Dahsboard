@@ -1,0 +1,180 @@
+
+<div class="tab-title">📝 منشئ الرسائل و Embed المتقدم</div>
+<div class="tab-desc">منشئ قريب من أسلوب Vexera / Hex / Vetox: نص عادي + Embed كامل + صور + حقول + أزرار تفاعلية، مع معاينة قبل النشر. ملاحظة: Discord لا يسمح بصورة داخل جسم الزر نفسه؛ الصورة يمكن أن تكون في الـEmbed أو في الرد الذي يفتحه الزر.</div>
+
+<div class="builder-grid">
+  <section class="card">
+    <h3>الرسالة والـ Embed</h3>
+    <div class="field"><label>النص فوق الـ Embed</label><textarea id="msg-content" placeholder="يمكنك كتابة رسالة عادية هنا..."></textarea></div>
+    <div class="row">
+      <div class="field"><label>القناة</label><select id="msg-channel">{% for c in guild['channels'] %}<option value="{{c['id']}}">#{{c['name']}}</option>{% endfor %}</select></div>
+      <div class="field"><label>لون الـ Embed</label><input id="msg-color" type="text" value="#5865F2" placeholder="#5865F2"></div>
+    </div>
+    <div class="field"><label>العنوان</label><input id="msg-title" type="text" maxlength="256"></div>
+    <div class="field"><label>الوصف</label><textarea id="msg-description" maxlength="4096" placeholder="Markdown مدعوم"></textarea></div>
+    <div class="row">
+      <div class="field"><label>رابط الصورة الكبيرة</label><input id="msg-image" type="text" placeholder="https://..."></div>
+      <div class="field"><label>رابط الصورة المصغرة</label><input id="msg-thumb" type="text" placeholder="https://..."></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>اسم الكاتب</label><input id="msg-author" type="text"></div>
+      <div class="field"><label>رابط أيقونة الكاتب</label><input id="msg-author-icon" type="text"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>تذييل الرسالة</label><input id="msg-footer" type="text"></div>
+      <div class="field"><label>أيقونة التذييل</label><input id="msg-footer-icon" type="text"></div>
+    </div>
+    <label class="checkline"><input id="msg-timestamp" type="checkbox"> إضافة الوقت الحالي</label>
+
+    <div class="builder-section">
+      <div class="section-head"><h3>الحقول</h3><button class="btn btn-ghost" type="button" onclick="addEmbedField()">＋ حقل</button></div>
+      <div id="embed-fields"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>الأزرار والتفاعلات</h3>
+    <p class="hint">كل زر يمكن أن يفتح تذكرة، يفتح نموذجاً، يفتح رابطاً، أو يرسل رداً خاصاً يحتوي نصاً وEmbed وصورة ومصغرة.</p>
+    <div id="message-buttons"></div>
+    <button class="btn btn-ghost" type="button" onclick="addMessageButton()">＋ إضافة زر</button>
+
+    <div class="preview-box">
+      <div class="preview-label">معاينة</div>
+      <div id="discord-preview" class="discord-preview">
+        <div id="preview-content" class="preview-content"></div>
+        <div class="preview-embed">
+          <div class="preview-bar"></div>
+          <div id="preview-title" class="preview-title">عنوان الـ Embed</div>
+          <div id="preview-description" class="preview-description">اكتب الوصف لتظهر المعاينة هنا.</div>
+          <div id="preview-fields"></div>
+          <img id="preview-image" class="preview-image" hidden>
+          <img id="preview-thumb" class="preview-thumb" hidden>
+          <div id="preview-footer" class="preview-footer"></div>
+        </div>
+        <div id="preview-buttons" class="preview-buttons"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-gold" type="button" onclick="publishAdvancedMessage()">🚀 نشر الرسالة الآن</button>
+  </section>
+</div>
+
+<div class="card">
+  <h3>❓ لوحات الأسئلة والأزرار السريعة</h3>
+  <p class="hint">هذه اللوحات تحفظ الأزرار في قاعدة البيانات ويمكن إعادة تسجيلها بعد إعادة تشغيل البوت.</p>
+  <div class="row">
+    <div class="field"><label>نص الزر</label><input id="faq-question" type="text" maxlength="80"></div>
+    <div class="field"><label>الإيموجي</label><input id="faq-emoji" type="text" value="❓"></div>
+    <div class="field"><label>لون الزر</label><select id="faq-style"><option value="primary">أزرق</option><option value="success">أخضر</option><option value="danger">أحمر</option><option value="secondary">رمادي</option></select></div>
+  </div>
+  <div class="field"><label>الرد الخاص</label><textarea id="faq-answer" maxlength="2000"></textarea></div>
+  <button class="btn btn-ghost" onclick="createFAQ()">＋ حفظ الزر</button>
+  <div class="table-wrap"><table><thead><tr><th>الزر</th><th>الرد</th><th></th></tr></thead><tbody>
+  {% for item in faqs %}
+  <tr><td>{{item['emoji']}} {{item['question']}}</td><td>{{item['answer'][:90]}}</td><td><button class="btn btn-danger" onclick="deleteFAQ({{item['id']}})">حذف</button></td></tr>
+  {% else %}<tr><td colspan="3" class="muted">لا توجد أزرار محفوظة.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+
+<script>
+let embedFields = [];
+let messageButtons = [];
+
+function addEmbedField(name="", value="", inline=false){
+  if(embedFields.length >= 25){ showToast("الحد الأقصى 25 حقلاً", false); return; }
+  embedFields.push({name,value,inline}); renderBuilder();
+}
+function addMessageButton(){
+  if(messageButtons.length >= 25){ showToast("الحد الأقصى 25 زرًا", false); return; }
+  messageButtons.push({id:crypto.randomUUID(),label:"زر جديد",emoji:"",style:"primary",action:"send_message",responseContent:"",responseTitle:"",responseMessage:"تم استلام طلبك.",responseColor:"#5865F2",responseImageUrl:"",responseThumbnailUrl:"",url:""});
+  renderBuilder();
+}
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+function renderBuilder(){
+  document.getElementById("embed-fields").innerHTML=embedFields.map((f,i)=>`
+    <div class="builder-item">
+      <div class="row">
+        <div class="field"><label>اسم الحقل</label><input value="${esc(f.name)}" oninput="embedFields[${i}].name=this.value;updatePreview()"></div>
+        <div class="field"><label>القيمة</label><input value="${esc(f.value)}" oninput="embedFields[${i}].value=this.value;updatePreview()"></div>
+        <label class="checkline"><input type="checkbox" ${f.inline?"checked":""} onchange="embedFields[${i}].inline=this.checked;updatePreview()"> Inline</label>
+        <button class="btn btn-danger" onclick="embedFields.splice(${i},1);renderBuilder()">حذف</button>
+      </div>
+    </div>`).join("");
+  document.getElementById("message-buttons").innerHTML=messageButtons.map((b,i)=>`
+    <div class="builder-item button-builder">
+      <div class="row">
+        <div class="field"><label>النص</label><input value="${esc(b.label)}" oninput="messageButtons[${i}].label=this.value;updatePreview()"></div>
+        <div class="field"><label>إيموجي</label><input value="${esc(b.emoji)}" oninput="messageButtons[${i}].emoji=this.value;updatePreview()"></div>
+        <div class="field"><label>اللون</label><select onchange="messageButtons[${i}].style=this.value;updatePreview()">
+          ${["primary","secondary","success","danger"].map(x=>`<option ${b.style===x?"selected":""} value="${x}">${x}</option>`).join("")}
+        </select></div>
+        <div class="field"><label>الإجراء</label><select onchange="messageButtons[${i}].action=this.value;renderBuilder()">
+          <option value="send_message" ${b.action==="send_message"?"selected":""}>رد خاص</option>
+          <option value="create_ticket" ${b.action==="create_ticket"?"selected":""}>فتح تذكرة</option>
+          <option value="open_modal" ${b.action==="open_modal"?"selected":""}>فتح نموذج</option>
+          <option value="open_url" ${b.action==="open_url"?"selected":""}>فتح رابط</option>
+        </select></div>
+        <button class="btn btn-danger" onclick="messageButtons.splice(${i},1);renderBuilder()">حذف</button>
+      </div>
+      ${b.action==="open_url"?`
+        <div class="field"><label>الرابط</label><input value="${esc(b.url)}" oninput="messageButtons[${i}].url=this.value"></div>
+      `:b.action==="send_message"?`
+        <div class="row">
+          <div class="field"><label>نص فوق الرد</label><input value="${esc(b.responseContent)}" oninput="messageButtons[${i}].responseContent=this.value"></div>
+          <div class="field"><label>عنوان الرد</label><input value="${esc(b.responseTitle)}" oninput="messageButtons[${i}].responseTitle=this.value"></div>
+        </div>
+        <div class="field"><label>نص الرد</label><textarea oninput="messageButtons[${i}].responseMessage=this.value">${esc(b.responseMessage)}</textarea></div>
+        <div class="row">
+          <div class="field"><label>لون الرد</label><input value="${esc(b.responseColor)}" oninput="messageButtons[${i}].responseColor=this.value"></div>
+          <div class="field"><label>صورة الرد</label><input value="${esc(b.responseImageUrl)}" oninput="messageButtons[${i}].responseImageUrl=this.value"></div>
+          <div class="field"><label>مصغرة الرد</label><input value="${esc(b.responseThumbnailUrl)}" oninput="messageButtons[${i}].responseThumbnailUrl=this.value"></div>
+        </div>
+      `:""}
+    </div>`).join("");
+  updatePreview();
+}
+function updatePreview(){
+  const content=document.getElementById("msg-content").value;
+  const title=document.getElementById("msg-title").value;
+  const desc=document.getElementById("msg-description").value;
+  document.getElementById("preview-content").textContent=content;
+  document.getElementById("preview-title").textContent=title||"عنوان الـ Embed";
+  document.getElementById("preview-description").textContent=desc||"اكتب الوصف لتظهر المعاينة هنا.";
+  const pf=document.getElementById("preview-fields");
+  pf.innerHTML=embedFields.filter(f=>f.name||f.value).map(f=>`<div class="preview-field"><b>${esc(f.name||"حقل")}</b><div>${esc(f.value||"—")}</div></div>`).join("");
+  const img=document.getElementById("preview-image"), thumb=document.getElementById("preview-thumb");
+  img.src=document.getElementById("msg-image").value; img.hidden=!img.src || !/^https?:\/\//.test(img.src);
+  thumb.src=document.getElementById("msg-thumb").value; thumb.hidden=!thumb.src || !/^https?:\/\//.test(thumb.src);
+  document.getElementById("preview-footer").textContent=document.getElementById("msg-footer").value;
+  document.getElementById("preview-buttons").innerHTML=messageButtons.map(b=>`<button class="fake-button ${b.style}">${esc(b.emoji)} ${esc(b.label)}</button>`).join("");
+}
+["msg-content","msg-title","msg-description","msg-image","msg-thumb","msg-footer"].forEach(id=>document.getElementById(id).addEventListener("input",updatePreview));
+
+async function publishAdvancedMessage(){
+  if(!document.getElementById("msg-channel").value){showToast("اختر قناة",false);return;}
+  const payload={
+    channel_id:document.getElementById("msg-channel").value,
+    content:document.getElementById("msg-content").value,
+    title:document.getElementById("msg-title").value,
+    description:document.getElementById("msg-description").value,
+    color:document.getElementById("msg-color").value,
+    image_url:document.getElementById("msg-image").value,
+    thumbnail_url:document.getElementById("msg-thumb").value,
+    author:{name:document.getElementById("msg-author").value,iconUrl:document.getElementById("msg-author-icon").value},
+    footer:{text:document.getElementById("msg-footer").value,iconUrl:document.getElementById("msg-footer-icon").value},
+    timestamp:document.getElementById("msg-timestamp").checked,
+    fields:embedFields,
+    buttons:messageButtons
+  };
+  await callAction("embed",payload);
+}
+async function createFAQ(){
+  const r=await fetch(`/dashboard/${GUILD_ID}/faq`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:document.getElementById("faq-question").value,answer:document.getElementById("faq-answer").value,emoji:document.getElementById("faq-emoji").value,style:document.getElementById("faq-style").value})});
+  const x=await r.json(); showToast(x.ok?"✅ تم حفظ الزر":"❌ "+(x.error||"فشل"),x.ok); if(x.ok)location.reload();
+}
+async function deleteFAQ(id){
+  const r=await fetch(`/dashboard/${GUILD_ID}/faq/${id}`,{method:"DELETE"}); const x=await r.json();
+  showToast(x.ok?"🗑️ تم الحذف":"❌ فشل",x.ok); if(x.ok)location.reload();
+}
+renderBuilder();
+</script>

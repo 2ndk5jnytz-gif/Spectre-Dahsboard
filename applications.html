@@ -44,9 +44,10 @@
         <label>الوصف</label>
         <textarea id="apply-desc">هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.</textarea>
     </div>
-    <div class="field">
-        <label>رابط صورة (اختياري)</label>
-        <input type="text" id="apply-image" placeholder="https://...">
+    <div class="row">
+      <div class="field"><label>رابط الصورة الكبيرة</label><input type="text" id="apply-image" placeholder="https://..."></div>
+      <div class="field"><label>رابط الصورة المصغرة</label><input type="text" id="apply-thumb" placeholder="https://..."></div>
+      <div class="field"><label>لون الـ Embed</label><input type="text" id="apply-color" value="#5865F2"></div>
     </div>
     <div class="field">
         <label>القناة</label>
@@ -71,6 +72,8 @@ async function publishApplyPanel() {
         title: document.getElementById("apply-title").value,
         description: document.getElementById("apply-desc").value,
         image_url: document.getElementById("apply-image").value,
+        thumbnail_url: document.getElementById("apply-thumb").value,
+        color: document.getElementById("apply-color").value,
     });
 }
 </script>

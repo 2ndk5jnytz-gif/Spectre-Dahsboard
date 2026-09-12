@@ -1,0 +1,20 @@
+
+<div class="tab-title">🎮 الألعاب و Counting</div>
+<div class="tab-desc">إعداد لعبة الأعلام، أسماء الألعاب، وCounting من لوحة واحدة.</div>
+<div class="card">
+<h3>🚩 لعبة الأعلام</h3>
+<div class="row"><div class="field"><label>عدد الجولات</label><input id="game-rounds" type="number" min="1" max="20" value="{{games_config.get('flags_rounds',5)}}"></div><div class="field"><label>وقت الجولة بالثواني</label><input id="game-timeout" type="number" min="5" max="120" value="{{games_config.get('flags_timeout',20)}}"></div></div>
+<button class="btn btn-gold" onclick="saveGames()">💾 حفظ</button>
+<p class="hint">الألعاب المتاحة: الأعلام، XO، حجر ورق مقص، النرد، ومتصدرو الألعاب.</p>
+</div>
+<div class="card">
+<h3>🔢 Counting</h3>
+<div class="row"><div class="field"><label>القناة</label><select id="count-channel">{% for c in guild['channels'] %}<option value="{{c['id']}}">#{{c['name']}}</option>{% endfor %}</select></div><div class="field"><label>الإيموجي</label><input id="count-emoji" value="✅"></div><div class="field"><label>عقوبة المخالفة (ثواني)</label><input id="count-timeout" type="number" value="60"></div></div>
+<button class="btn btn-gold" onclick="saveCounting()">＋ تفعيل Counting</button>
+<table><thead><tr><th>القناة</th><th>العداد</th><th></th></tr></thead><tbody>{% for x in counting_channels %}<tr><td>{{x['channel_id']}}</td><td>{{x['current_count']}}</td><td><button class="btn btn-danger" onclick="removeCounting('{{x['channel_id']}}')">إيقاف</button></td></tr>{% else %}<tr><td colspan="3" class="muted">لا توجد قنوات Counting.</td></tr>{% endfor %}</tbody></table>
+</div>
+<script>
+async function saveGames(){const r=await fetch(`/dashboard/${GUILD_ID}/save-json/games`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({flags_rounds:document.getElementById("game-rounds").value,flags_timeout:document.getElementById("game-timeout").value})});const x=await r.json();showToast(x.ok?"✅ تم":"❌ فشل",x.ok);}
+async function saveCounting(){const r=await fetch(`/dashboard/${GUILD_ID}/counting`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({channel_id:document.getElementById("count-channel").value,emoji:document.getElementById("count-emoji").value,timeout_seconds:document.getElementById("count-timeout").value})});const x=await r.json();showToast(x.ok?"✅ تم تفعيل Counting":"❌ "+x.error,x.ok);if(x.ok)location.reload();}
+async function removeCounting(id){const r=await fetch(`/dashboard/${GUILD_ID}/counting`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({channel_id:id})});const x=await r.json();showToast(x.ok?"🗑️ تم الإيقاف":"❌ فشل",x.ok);if(x.ok)location.reload();}
+</script>

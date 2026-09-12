@@ -1,23 +1,25 @@
-<div class="tab-title">👋 الترحيب</div>
-<div class="tab-desc">رسالة الترحيب بالأعضاء الجدد.</div>
 
+<div class="tab-title">👋 الترحيب المتقدم</div>
+<div class="tab-desc">كل إعدادات صورة الترحيب الموجودة فعلياً في البوت، مع متغيرات تلقائية مثل {user} و{server} و{member_count}.</div>
 <div class="card">
-    <div class="row">
-        <div class="field">
-            <label>الحالة</label>
-            <select data-key="welcome_enabled">
-                <option value="1" {% if settings['welcome_enabled'] %}selected{% endif %}>مفعّل</option>
-                <option value="0" {% if not settings['welcome_enabled'] %}selected{% endif %}>معطّل</option>
-            </select>
-        </div>
-        <div class="field">
-            <label>قناة الترحيب</label>
-            <select data-key="welcome_channel_id">
-                {% for channel in guild['channels'] %}
-                <option value="{{ channel['id'] }}" {% if settings['welcome_channel_id']|string == channel['id'] %}selected{% endif %}>#{{ channel['name'] }}</option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
-    <button class="btn btn-gold" onclick="saveSettings(collectForm(document.querySelector('.card')))">💾 حفظ</button>
+<div class="row"><div class="field"><label>الحالة</label><select id="wel-enabled"><option value="1" {{'selected' if settings['welcome_enabled'] else ''}}>مفعّل</option><option value="0" {{'selected' if not settings['welcome_enabled'] else ''}}>معطّل</option></select></div><div class="field"><label>قناة الترحيب</label><select id="wel-channel">{% for c in guild['channels'] %}<option value="{{c['id']}}" {% if settings['welcome_channel_id']|string==c['id'] %}selected{% endif %}>#{{c['name']}}</option>{% endfor %}</select></div></div>
+<div class="row"><div class="field"><label>العنوان</label><input id="wel-title" value="{{welcome_config.get('title','عضو جديد انضم إلينا!')}}"></div><div class="field"><label>الوصف</label><input id="wel-desc" value="{{welcome_config.get('description','مرحباً بك {user} في سيرفرنا!')}}"></div></div>
+<div class="field"><label>صورة الخلفية URL</label><input id="wel-bg" value="{{welcome_config.get('background_url','')}}"></div>
+<div class="row">
+<div class="field"><label>لون الخلفية</label><input id="wel-bg-color" value="{{welcome_config.get('background_color','#17233A')}}"></div>
+<div class="field"><label>لون النص</label><input id="wel-text-color" value="{{welcome_config.get('text_color','#FFFFFF')}}"></div>
+<div class="field"><label>لون إطار الصورة</label><input id="wel-border-color" value="{{welcome_config.get('avatar_border_color','#20D6A7')}}"></div>
 </div>
+<div class="row">
+<div class="field"><label>حجم الصورة</label><input id="wel-avatar-size" type="number" value="{{welcome_config.get('avatar_size',220)}}"></div>
+<div class="field"><label>موقع X</label><input id="wel-x" type="number" value="{{welcome_config.get('avatar_x',603)}}"></div>
+<div class="field"><label>موقع Y</label><input id="wel-y" type="number" value="{{welcome_config.get('avatar_y',246)}}"></div>
+<div class="field"><label>عرض الإطار</label><input id="wel-border-width" type="number" value="{{welcome_config.get('avatar_border_width',8)}}"></div>
+</div>
+<div class="row"><div class="field"><label>موضع النص X</label><input id="wel-tx" type="number" value="{{welcome_config.get('text_x',603)}}"></div><div class="field"><label>موضع النص Y</label><input id="wel-ty" type="number" value="{{welcome_config.get('text_y',500)}}"></div><div class="field"><label>حجم العنوان</label><input id="wel-title-size" type="number" value="{{welcome_config.get('title_size',42)}}"></div><div class="field"><label>حجم الوصف</label><input id="wel-desc-size" type="number" value="{{welcome_config.get('description_size',26)}}"></div></div>
+<button class="btn btn-gold" onclick="saveWelcome()">💾 حفظ وتطبيق</button>
+</div>
+<div class="card"><h3>المتغيرات</h3><div class="chips"><span>{user}</span><span>{username}</span><span>{display_name}</span><span>{server}</span><span>{member_count}</span><span>{user_id}</span></div></div>
+<script>
+async function saveWelcome(){const p={enabled:document.getElementById("wel-enabled").value==="1",channel_id:document.getElementById("wel-channel").value,title:document.getElementById("wel-title").value,description:document.getElementById("wel-desc").value,background_url:document.getElementById("wel-bg").value,background_color:document.getElementById("wel-bg-color").value,text_color:document.getElementById("wel-text-color").value,avatar_border_color:document.getElementById("wel-border-color").value,avatar_size:document.getElementById("wel-avatar-size").value,avatar_x:document.getElementById("wel-x").value,avatar_y:document.getElementById("wel-y").value,avatar_border_width:document.getElementById("wel-border-width").value,text_x:document.getElementById("wel-tx").value,text_y:document.getElementById("wel-ty").value,title_size:document.getElementById("wel-title-size").value,description_size:document.getElementById("wel-desc-size").value};const r=await fetch(`/dashboard/${GUILD_ID}/save-json/welcome`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});const x=await r.json();showToast(x.ok?"✅ تم حفظ الترحيب":"❌ فشل",x.ok);}
+</script>

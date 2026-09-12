@@ -7,11 +7,16 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "spectre_bot_latest.py"
 REQUIREMENTS = ROOT / "requirements.txt"
+
+DASHBOARD_BUNDLE = ROOT / "dashboard_bundle.zip"
+DASHBOARD_DIR = ROOT / "dashboard"
 
 
 def prepare_ffmpeg() -> None:
@@ -31,10 +36,7 @@ def prepare_ffmpeg() -> None:
         os.environ.setdefault("FFMPEG_PATH", str(existing))
         return
 
-    # Keep the repository small: static-ffmpeg is a tiny Python package and
-    # downloads/caches the correct platform binary only when needed.
     try:
-        import static_ffmpeg
         from static_ffmpeg import run as static_run
         ffmpeg_path, _ffprobe_path = static_run.get_or_fetch_platform_executables_else_raise()
         os.environ["FFMPEG_PATH"] = str(ffmpeg_path)
@@ -46,6 +48,7 @@ def prepare_ffmpeg() -> None:
     raise FileNotFoundError(
         "FFmpeg not found. Install static-ffmpeg or provide FFMPEG_PATH."
     )
+
 
 # JustRunMyApp/Wispbyte قد يرفعان الملفات بدون تثبيت الاعتماديات تلقائياً.
 # نثبّت فقط ما هو ناقص فعلياً من الوحدات المطلوبة وقت التشغيل.
@@ -65,6 +68,7 @@ _REQUIRED_MODULES = {
 # بكل ميزاته النصية بدل التوقف الكامل بسبب اعتمادية صوت اختيارية.
 _CRITICAL_MODULES = {"discord", "dotenv", "aiohttp"}
 _missing = [package for module, package in _REQUIRED_MODULES.items() if importlib.util.find_spec(module) is None]
+prepare_dashboard()
 prepare_ffmpeg()
 
 if _missing:

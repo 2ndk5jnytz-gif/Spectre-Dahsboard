@@ -39,6 +39,16 @@
         <label>الوصف</label>
         <textarea id="ticket-desc">اضغط الزر في الأسفل لفتح تذكرة خاصة بك.</textarea>
     </div>
+    <div class="row">
+    <div class="field">
+        <label>رابط الصورة الكبيرة</label>
+        <input type="text" id="ticket-image" placeholder="https://...">
+    </div>
+    <div class="field">
+        <label>رابط الصورة المصغرة</label>
+        <input type="text" id="ticket-thumb" placeholder="https://...">
+    </div>
+    </div>
     <div class="field">
         <label>القناة</label>
         <select id="ticket-channel">
@@ -59,6 +69,9 @@ async function publishTicketPanel() {
         style: document.getElementById("ticket-style").value,
         title: document.getElementById("ticket-title").value,
         description: document.getElementById("ticket-desc").value,
+        image_url: document.getElementById("ticket-image").value,
+        thumbnail_url: document.getElementById("ticket-thumb").value,
+        color: "#5865F2",
     });
 }
 </script>

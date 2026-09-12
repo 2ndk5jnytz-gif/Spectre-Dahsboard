@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import json
 
 import discord
 
@@ -92,13 +93,16 @@ async def publish_ticket_panel(bot: Any, guild_id: int, payload: dict[str, Any])
     db.set_guild_setting(guild.id, "ticket_label", label)
     db.set_guild_setting(guild.id, "ticket_style", style)
 
-    embed = discord.Embed(
-        title=payload.get("title") or "مركز المساعدة والدعم",
-        description=payload.get("description") or "اضغط الزر في الأسفل لفتح تذكرة خاصة بك.",
-        color=discord.Color.blurple(),
-    )
-    if payload.get("image_url"):
-        embed.set_image(url=payload["image_url"])
+    from spectre_bot_latest import workflow_embed
+    embed = workflow_embed({
+        "title": payload.get("title") or "مركز المساعدة والدعم",
+        "description": payload.get("description") or "اضغط الزر في الأسفل لفتح تذكرة خاصة بك.",
+        "color": payload.get("color") or "#5865F2",
+        "imageUrl": payload.get("image_url") or "",
+        "thumbnailUrl": payload.get("thumbnail_url") or "",
+        "footer": payload.get("footer") or {},
+        "timestamp": bool(payload.get("timestamp")),
+    })
     view = TicketCreateView(emoji, label, style)
     bot.add_view(view)
     message = await channel.send(embed=embed, view=view)
@@ -121,13 +125,16 @@ async def publish_apply_panel(bot: Any, guild_id: int, payload: dict[str, Any]) 
     db.set_guild_setting(guild.id, "apply_style", style)
     db.set_guild_setting(guild.id, "apply_image_url", image_url)
 
-    embed = discord.Embed(
-        title=payload.get("title") or "التقديم للإدارة 🛡️",
-        description=payload.get("description") or "هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.",
-        color=parse_color(style),
-    )
-    if image_url:
-        embed.set_image(url=image_url)
+    from spectre_bot_latest import workflow_embed
+    embed = workflow_embed({
+        "title": payload.get("title") or "التقديم للإدارة 🛡️",
+        "description": payload.get("description") or "هذه الغرفة مخصصة لطلبات الإدارة. اضغط الزر في الأسفل ثم املأ النموذج.",
+        "color": payload.get("color") or style,
+        "imageUrl": image_url,
+        "thumbnailUrl": payload.get("thumbnail_url") or "",
+        "footer": payload.get("footer") or {},
+        "timestamp": bool(payload.get("timestamp")),
+    })
     view = build_apply_view(guild.id, emoji, style)
     bot.add_view(view)
     message = await channel.send(embed=embed, view=view)
@@ -136,24 +143,47 @@ async def publish_apply_panel(bot: Any, guild_id: int, payload: dict[str, Any]) 
 
 # ==================== Embed حر ====================
 async def send_embed(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Advanced message/Embed publisher used by the dashboard.
+
+    Supports normal message content, full Discord embed styling, up to 25 fields,
+    and persistent interactive buttons. Button responses may themselves contain
+    text, embeds, images and thumbnails. Link buttons use Discord's native URL
+    button style.
+    """
     guild = get_guild(bot, guild_id)
     channel = guild.get_channel(int(payload.get("channel_id", 0)))
     if not isinstance(channel, discord.TextChannel):
         raise ValueError("قناة غير صحيحة.")
 
-    from spectre_bot_latest import parse_color
+    from spectre_bot_latest import workflow_embed, build_panel_view
 
-    embed = discord.Embed(
-        title=payload.get("title") or None,
-        description=payload.get("description") or "",
-        color=parse_color(payload.get("color") or "blurple"),
+    config = {
+        "title": payload.get("title") or "",
+        "description": payload.get("description") or "",
+        "color": payload.get("color") or "#5865F2",
+        "imageUrl": payload.get("image_url") or "",
+        "thumbnailUrl": payload.get("thumbnail_url") or "",
+        "author": payload.get("author") or {},
+        "footer": payload.get("footer") or {},
+        "fields": payload.get("fields") or [],
+        "timestamp": bool(payload.get("timestamp")),
+        "buttons": payload.get("buttons") or [],
+    }
+    content = str(payload.get("content") or "")[:2000] or None
+    embed = workflow_embed(config)
+    buttons = config["buttons"][:25]
+    view = build_panel_view(guild.id, config) if buttons else None
+    if view:
+        bot.add_view(view)
+    message = await channel.send(
+        content=content,
+        embed=embed,
+        view=view,
+        allowed_mentions=discord.AllowedMentions(roles=True, users=True, everyone=False),
     )
-    if payload.get("image_url"):
-        embed.set_image(url=payload["image_url"])
-    if payload.get("thumbnail_url"):
-        embed.set_thumbnail(url=payload["thumbnail_url"])
-    message = await channel.send(embed=embed)
-    return {"message_id": str(message.id)}
+    if buttons:
+        db.save_panel(guild.id, channel.id, message.id, json.dumps(config, ensure_ascii=False))
+    return {"message_id": str(message.id), "channel_id": str(channel.id)}
 
 
 # ==================== الرولات الذاتية ====================
@@ -254,44 +284,69 @@ async def mod_action(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[s
     guild = get_guild(bot, guild_id)
     action = payload.get("action")
     reason = payload.get("reason") or "بواسطة لوحة التحكم"
-    try:
-        user_id = int(payload["user_id"])
-    except (KeyError, ValueError):
-        raise ValueError("بيانات غير صحيحة.")
-    member = guild.get_member(user_id)
-
     from spectre_bot_latest import send_mod_log
 
     try:
+        user_id = int(payload.get("user_id", 0))
+    except (TypeError, ValueError):
+        user_id = 0
+    member = guild.get_member(user_id) if user_id else None
+
+    try:
         if action == "kick":
-            if not member:
-                raise ValueError("العضو غير موجود في السيرفر.")
+            if not member: raise ValueError("العضو غير موجود في السيرفر.")
             await member.kick(reason=reason)
-            await send_mod_log(guild, discord.Embed(title="👢 طرد عضو (من لوحة التحكم)", description=f"**العضو:** {member.mention} (`{member.id}`)\n**السبب:** {reason}", color=discord.Color.orange()))
         elif action == "ban":
-            user = member or discord.Object(id=user_id)
-            await guild.ban(user, reason=reason)
-            await send_mod_log(guild, discord.Embed(title="🔨 حظر عضو (من لوحة التحكم)", description=f"**العضو:** `{user_id}`\n**السبب:** {reason}", color=discord.Color.red()))
+            if not user_id: raise ValueError("أدخل آيدي العضو.")
+            await guild.ban(member or discord.Object(id=user_id), reason=reason)
         elif action == "unban":
+            if not user_id: raise ValueError("أدخل آيدي المستخدم.")
             await guild.unban(discord.Object(id=user_id), reason=reason)
-            await send_mod_log(guild, discord.Embed(title="✅ فك حظر (من لوحة التحكم)", description=f"**العضو:** `{user_id}`\n**السبب:** {reason}", color=discord.Color.green()))
         elif action == "timeout":
-            if not member:
-                raise ValueError("العضو غير موجود في السيرفر.")
-            minutes = int(payload.get("minutes", 10))
+            if not member: raise ValueError("العضو غير موجود في السيرفر.")
+            minutes = max(1, min(40320, int(payload.get("minutes", 10))))
             await member.timeout(timedelta(minutes=minutes), reason=reason)
-            await send_mod_log(guild, discord.Embed(title="⏱️ تايم أوت (من لوحة التحكم)", description=f"**العضو:** {member.mention} (`{member.id}`)\n**المدة:** {minutes} دقيقة\n**السبب:** {reason}", color=discord.Color.orange()))
         elif action == "untimeout":
-            if not member:
-                raise ValueError("العضو غير موجود في السيرفر.")
+            if not member: raise ValueError("العضو غير موجود في السيرفر.")
             await member.timeout(None, reason=reason)
-            await send_mod_log(guild, discord.Embed(title="✅ إلغاء تايم أوت (من لوحة التحكم)", description=f"**العضو:** {member.mention} (`{member.id}`)", color=discord.Color.green()))
+        elif action == "warn":
+            if not member: raise ValueError("العضو غير موجود في السيرفر.")
+            db.add_warning(guild.id, member.id, int(payload.get("moderator_id", guild.owner_id or 0)), reason)
+        elif action == "clear":
+            channel = guild.get_channel(int(payload.get("channel_id", 0)))
+            if not isinstance(channel, discord.TextChannel): raise ValueError("اختر قناة نصية.")
+            amount = max(1, min(100, int(payload.get("amount", 10))))
+            await channel.purge(limit=amount)
+        elif action in {"lock", "unlock"}:
+            channel = guild.get_channel(int(payload.get("channel_id", 0)))
+            if not isinstance(channel, discord.TextChannel): raise ValueError("اختر قناة نصية.")
+            overwrite = channel.overwrites_for(guild.default_role)
+            overwrite.send_messages = False if action == "lock" else None
+            await channel.set_permissions(guild.default_role, overwrite=overwrite, reason=reason)
+        elif action in {"give_role", "remove_role"}:
+            if not member: raise ValueError("العضو غير موجود في السيرفر.")
+            role = guild.get_role(int(payload.get("role_id", 0)))
+            if not role: raise ValueError("الرتبة غير موجودة.")
+            if action == "give_role":
+                await member.add_roles(role, reason=reason)
+            else:
+                await member.remove_roles(role, reason=reason)
         else:
             raise ValueError("إجراء غير معروف.")
     except discord.Forbidden:
         raise ValueError("صلاحيات البوت غير كافية لتنفيذ هذا الإجراء.")
-    return {}
+    except discord.HTTPException as error:
+        raise ValueError(f"رفض Discord الإجراء: {error}")
 
+    try:
+        await send_mod_log(guild, discord.Embed(
+            title=f"🛠️ {action} — لوحة Spectre",
+            description=f"**العضو:** `{user_id}`\n**السبب:** {reason}",
+            color=discord.Color.blurple(),
+        ))
+    except Exception:
+        pass
+    return {}
 
 # ==================== المسابقات ====================
 async def create_giveaway(bot: Any, guild_id: int, payload: dict[str, Any]) -> dict[str, Any]:

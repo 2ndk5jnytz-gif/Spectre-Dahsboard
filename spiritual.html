@@ -1,0 +1,26 @@
+
+<div class="tab-title">🕋 القرآن والأذكار</div>
+<div class="tab-desc">إدارة إذاعة القرآن المحسّنة والأذكار المجدولة من مكان واحد.</div>
+<div class="card">
+<h3>📻 إذاعة القرآن</h3>
+<div class="row"><div class="field"><label>القناة الصوتية</label><select id="quran-channel">{% for c in guild['voice_channels'] %}<option value="{{c['id']}}">🔊 {{c['name']}}</option>{% endfor %}</select></div></div>
+<button class="btn btn-gold" onclick="quran('start')">▶️ تشغيل</button>
+<button class="btn btn-danger" onclick="quran('stop')">⏹️ إيقاف</button>
+<div class="status-box">المصدر الافتراضي المحسن داخل البوت ولا تحتاج لإدخال رابط.</div>
+</div>
+<div class="card">
+<h3>📿 الأذكار</h3>
+<div class="row">
+<div class="field"><label>الحالة</label><select id="adh-enabled"><option value="1" {{'selected' if adhkar.get('enabled',True) else ''}}>مفعّل</option><option value="0" {{'selected' if not adhkar.get('enabled',True) else ''}}>معطّل</option></select></div>
+<div class="field"><label>قناة الأذكار</label><select id="adh-channel">{% for c in guild['channels'] %}<option value="{{c['id']}}" {% if adhkar.get('channel_id')|string==c['id'] %}selected{% endif %}>#{{c['name']}}</option>{% endfor %}</select></div>
+</div>
+<div class="row"><div class="field"><label>الصباح — بتوقيت مكة</label><input id="adh-morning" value="{{adhkar.get('morning_time','07:00')}}"></div><div class="field"><label>المساء — بتوقيت مكة</label><input id="adh-evening" value="{{adhkar.get('evening_time','18:00')}}"></div><div class="field"><label>الفترة العامة بالدقائق (0 = إيقاف)</label><input id="adh-interval" type="number" value="{{adhkar.get('general_interval_minutes',0)}}"></div></div>
+<div class="row"><div class="field"><label>منشن اختياري</label><input id="adh-mention" value="{{adhkar.get('mention','')}}"></div><div class="field"><label>اللون</label><input id="adh-color" value="{{adhkar.get('color','2fa47a')}}"></div></div>
+<button class="btn btn-gold" onclick="saveAdhkar()">💾 حفظ الإعدادات</button>
+<button class="btn btn-ghost" onclick="adhkarNow('morning')">📖 أرسل الآن</button>
+</div>
+<script>
+async function quran(a){const r=await fetch(`/dashboard/${GUILD_ID}/quran/${a}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({channel_id:document.getElementById("quran-channel").value})});const x=await r.json();showToast(x.ok?(a==="start"?"▶️ بدأت الإذاعة":"⏹️ توقفت الإذاعة"):"❌ "+x.error,x.ok);}
+async function saveAdhkar(){const payload={enabled:document.getElementById("adh-enabled").value==="1",channel_id:document.getElementById("adh-channel").value,morning_time:document.getElementById("adh-morning").value,evening_time:document.getElementById("adh-evening").value,general_interval_minutes:document.getElementById("adh-interval").value,mention:document.getElementById("adh-mention").value,color:document.getElementById("adh-color").value};const r=await fetch(`/dashboard/${GUILD_ID}/save-json/adhkar`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const x=await r.json();showToast(x.ok?"✅ تم حفظ الأذكار":"❌ فشل",x.ok);}
+async function adhkarNow(category){const r=await fetch(`/dashboard/${GUILD_ID}/adhkar-now`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category})});const x=await r.json();showToast(x.ok?"✅ تم الإرسال":"❌ "+(x.error||"فشل"),x.ok);}
+</script>

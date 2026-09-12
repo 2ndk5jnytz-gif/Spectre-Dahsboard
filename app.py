@@ -16,6 +16,7 @@ discord.py مباشرة من هذا الملف بدون المرور من هذا
 from __future__ import annotations
 
 import asyncio
+import secrets
 import os
 import sys
 from functools import wraps
@@ -35,6 +36,16 @@ load_dotenv(ROOT / ".env")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("DASHBOARD_SECRET_KEY", "").strip() or os.urandom(32)
+
+
+@app.after_request
+def security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
 
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "").strip()
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
@@ -84,11 +95,14 @@ def login():
     if not DISCORD_CLIENT_ID or not DASHBOARD_REDIRECT_URI:
         return "لوحة التحكم غير مُهيّأة بعد: أضف DISCORD_CLIENT_ID و DASHBOARD_REDIRECT_URI في .env", 500
     import urllib.parse
+    state = secrets.token_urlsafe(32)
+    session["oauth_state"] = state
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "redirect_uri": DASHBOARD_REDIRECT_URI,
         "response_type": "code",
         "scope": "identify guilds",
+        "state": state,
     }
     query = urllib.parse.urlencode(params)
     return redirect(f"https://discord.com/oauth2/authorize?{query}")
@@ -99,8 +113,12 @@ def callback():
     import requests
 
     code = request.args.get("code")
+    state = request.args.get("state", "")
+    expected_state = session.pop("oauth_state", "")
     if not code:
         return redirect(url_for("index"))
+    if not expected_state or not secrets.compare_digest(state, expected_state):
+        return "طلب تسجيل الدخول غير صالح أو انتهت صلاحيته. أعد المحاولة.", 400
     token_response = requests.post(
         f"{DISCORD_API}/oauth2/token",
         data={
@@ -179,18 +197,22 @@ async def _guild_overview_coro(guild_id: int):
 
 
 TABS = [
-    ("عام", "general"),
-    ("التذاكر", "tickets"),
-    ("التقديم للإدارة", "applications"),
-    ("اللفلات والخبرة", "leveling"),
-    ("الترحيب", "welcome"),
-    ("سجل الإدارة", "modlog"),
-    ("الرولات الذاتية", "reaction_roles"),
-    ("الردود التلقائية", "auto_responses"),
-    ("إجراء إداري", "moderation"),
-    ("الحماية من التخريب", "antinuke"),
-    ("الحماية المتقدمة", "advanced_security"),
-    ("لوحة النجوم والمسابقات", "extras"),
+    ("🏠 الرئيسية والإعدادات", "general"),
+    ("📝 الرسائل و Embed", "messages"),
+    ("🎫 التذاكر", "tickets"),
+    ("🛡️ التقديم للإدارة", "applications"),
+    ("🎭 الرولات الذاتية", "reaction_roles"),
+    ("⚡ الأتمتة والردود", "automation"),
+    ("👋 الترحيب", "welcome"),
+    ("📈 اللفلات والخبرة", "leveling"),
+    ("🛡️ الحماية — Anti-Nuke", "antinuke"),
+    ("🚨 الحماية المتقدمة", "advanced_security"),
+    ("🔨 الإشراف", "moderation"),
+    ("⭐ المجتمع والمسابقات", "extras"),
+    ("📡 التنبيهات الاجتماعية", "social"),
+    ("🕋 القرآن والأذكار", "spiritual"),
+    ("🎮 الألعاب و Counting", "games"),
+    ("📋 سجل الإدارة", "modlog"),
 ]
 
 ANTINUKE_PERMISSION_CHOICES = [
@@ -228,6 +250,21 @@ def guild_dashboard(guild_id: str, tab: str = "general"):
         context["phishing_domains"] = json_module.loads(settings.get("antiphishing_domains_json") or "[]")
         context["whitelist_ids"] = json_module.loads(settings.get("antinuke_whitelist_json") or "[]")
         context["bot_whitelist_ids"] = json_module.loads(settings.get("antinuke_bot_whitelist_json") or "[]")
+    if tab == "messages":
+        context["faqs"] = db.get_faqs(int(guild_id))
+        context["panels"] = db.get_panels(int(guild_id))
+    if tab == "automation":
+        context["auto_responses"] = db.get_auto_responses(int(guild_id))
+        context["presence"] = db.get_presence_config()
+    if tab == "social":
+        context["social_sources"] = db.get_social_sources(int(guild_id))
+    if tab == "spiritual":
+        context["adhkar"] = db.get_adhkar_config(int(guild_id))
+    if tab == "games":
+        context["games_config"] = db.get_games_config(int(guild_id))
+        context["counting_channels"] = db.get_counting_channels(int(guild_id))
+    if tab == "welcome":
+        context["welcome_config"] = db.get_welcome_config(int(guild_id))
     template = f"tabs/{tab}.html"
     if not (Path(__file__).parent / "templates" / template).is_file():
         template = "tabs/general.html"
@@ -394,6 +431,175 @@ def remove_whitelist_route(guild_id: str):
         ids.remove(target_id)
         db.set_guild_setting(int(guild_id), key, json_module.dumps(ids))
     return jsonify({"ok": True, "ids": ids})
+
+
+
+@app.route("/dashboard/<guild_id>/save-json/<config_name>", methods=["POST"])
+@login_required
+def save_json_config(guild_id: str, config_name: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    payload = request.get_json(force=True) or {}
+    gid = int(guild_id)
+    if config_name == "welcome":
+        db.save_welcome_config(gid, payload)
+        if "channel_id" in payload:
+            db.set_guild_setting(gid, "welcome_channel_id", int(payload.get("channel_id") or 0) or None)
+        if "enabled" in payload:
+            db.set_guild_setting(gid, "welcome_enabled", bool(payload.get("enabled")))
+    elif config_name == "games":
+        db.save_games_config(gid, payload)
+    elif config_name == "adhkar":
+        db.save_adhkar_config(gid, payload)
+    elif config_name == "social":
+        db.save_social_sources(gid, payload if isinstance(payload, list) else [])
+    else:
+        return jsonify({"ok": False, "error": "إعداد غير معروف"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/<guild_id>/social", methods=["POST"])
+@login_required
+def add_social(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    import social_notifications
+    payload = request.get_json(force=True) or {}
+    try:
+        source = social_notifications.normalize_source(
+            payload.get("platform", ""),
+            payload.get("url", ""),
+            int(payload.get("channel_id", 0)),
+            payload.get("mention", ""),
+            payload.get("message", social_notifications.DEFAULT_MESSAGE),
+            int(str(payload.get("color", "2ca77a")).lstrip("#"), 16),
+        )
+    except (TypeError, ValueError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    sources = db.get_social_sources(int(guild_id))
+    sources = [x for x in sources if not (x.get("platform") == source["platform"] and x.get("url") == source["url"])]
+    sources.append(source)
+    db.save_social_sources(int(guild_id), sources)
+    return jsonify({"ok": True, "source": source, "sources": sources})
+
+
+@app.route("/dashboard/<guild_id>/social", methods=["DELETE"])
+@login_required
+def delete_social(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    payload = request.get_json(force=True) or {}
+    url = str(payload.get("url", "")).strip()
+    sources = [x for x in db.get_social_sources(int(guild_id)) if x.get("url") != url]
+    db.save_social_sources(int(guild_id), sources)
+    return jsonify({"ok": True, "sources": sources})
+
+
+@app.route("/dashboard/<guild_id>/adhkar-now", methods=["POST"])
+@login_required
+def adhkar_now(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    category = (request.get_json(force=True) or {}).get("category", "morning")
+    try:
+        from spectre_bot_latest import send_adhkar_embed
+        guild = _bot_instance.get_guild(int(guild_id))
+        if guild is None:
+            raise ValueError("السيرفر غير متصل بالبوت")
+        result = call_bot(send_adhkar_embed(guild, category, force=True))
+        return jsonify({"ok": bool(result)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/<guild_id>/quran/<action_name>", methods=["POST"])
+@login_required
+def quran_action(guild_id: str, action_name: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    gid = int(guild_id)
+    guild = _bot_instance.get_guild(gid)
+    if guild is None:
+        return jsonify({"ok": False, "error": "السيرفر غير متصل بالبوت"}), 400
+    payload = request.get_json(force=True) or {}
+    try:
+        from spectre_bot_latest import radio_manager
+        if action_name == "stop":
+            call_bot(radio_manager.stop(guild))
+            return jsonify({"ok": True, "status": "stopped"})
+        if action_name == "start":
+            channel = guild.get_channel(int(payload.get("channel_id", 0)))
+            if not channel or not hasattr(channel, "connect"):
+                return jsonify({"ok": False, "error": "اختر قناة صوتية صحيحة."}), 400
+            call_bot(radio_manager.start(guild, channel, os.getenv("QURAN_RADIO_STREAM_URL")))
+            return jsonify({"ok": True, "status": "playing", "channel": channel.name})
+        return jsonify({"ok": False, "error": "إجراء غير معروف"}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/<guild_id>/counting", methods=["POST"])
+@login_required
+def configure_counting_dashboard(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    p = request.get_json(force=True) or {}
+    try:
+        db.set_counting_channel(int(guild_id), int(p["channel_id"]), p.get("emoji") or "✅", int(p.get("timeout_seconds", 60)), True)
+    except (KeyError, ValueError):
+        return jsonify({"ok": False, "error": "بيانات Counting غير صحيحة"}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/dashboard/<guild_id>/counting", methods=["DELETE"])
+@login_required
+def delete_counting_dashboard(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    p = request.get_json(force=True) or {}
+    try:
+        removed = db.remove_counting_channel(int(guild_id), int(p["channel_id"]))
+    except (KeyError, ValueError):
+        removed = False
+    return jsonify({"ok": removed})
+
+
+@app.route("/dashboard/<guild_id>/faq", methods=["POST"])
+@login_required
+def create_faq_dashboard(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    p = request.get_json(force=True) or {}
+    if not str(p.get("question","")).strip() or not str(p.get("answer","")).strip():
+        return jsonify({"ok": False, "error": "اكتب نص الزر والرد."}), 400
+    faq_id = db.add_faq(int(guild_id), str(p["question"])[:80], str(p["answer"])[:2000], str(p.get("emoji") or "❓")[:10], str(p.get("style") or "blurple"))
+    return jsonify({"ok": True, "id": faq_id})
+
+
+@app.route("/dashboard/<guild_id>/faq/<int:faq_id>", methods=["DELETE"])
+@login_required
+def delete_faq_dashboard(guild_id: str, faq_id: int):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    return jsonify({"ok": db.delete_faq(int(guild_id), faq_id)})
+
+
+@app.route("/dashboard/<guild_id>/presence", methods=["POST"])
+@login_required
+def save_presence_dashboard(guild_id: str):
+    if guild_id not in session.get("manageable_guild_ids", []):
+        return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    p = request.get_json(force=True) or {}
+    messages = [str(x).strip() for x in (p.get("messages") or []) if str(x).strip()][:10]
+    interval = max(15, min(86400, int(p.get("interval_seconds", 60))))
+    db.set_presence_config(messages, interval)
+    try:
+        from spectre_bot_latest import rotate_presence, apply_next_presence
+        rotate_presence.change_interval(seconds=interval)
+        call_bot(apply_next_presence())
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 
 _ACTION_COROUTINES = {

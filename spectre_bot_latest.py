@@ -925,11 +925,40 @@ def discord_asset_url(raw_url: object) -> str:
 
 
 def workflow_embed(config: dict[str, Any]) -> discord.Embed:
-    embed = discord.Embed(title=str(config.get("title", "Spectre"))[:256], description=str(config.get("description", ""))[:2500], color=parse_color(str(config.get("color", "#5865F2"))))
+    embed = discord.Embed(
+        title=str(config.get("title", "Spectre"))[:256] or None,
+        description=str(config.get("description", ""))[:4096],
+        color=parse_color(str(config.get("color", "#5865F2"))),
+    )
+    author = config.get("author") or {}
+    if isinstance(author, dict) and (author.get("name") or author.get("iconUrl")):
+        author_kwargs = {"name": str(author.get("name") or "Spectre")[:256]}
+        icon = discord_asset_url(author.get("iconUrl"))
+        link = discord_asset_url(author.get("url"))
+        if icon:
+            author_kwargs["icon_url"] = icon
+        if link:
+            author_kwargs["url"] = link
+        embed.set_author(**author_kwargs)
+    for field in (config.get("fields") or [])[:25]:
+        if not isinstance(field, dict):
+            continue
+        name = str(field.get("name") or "حقل")[:256]
+        value = str(field.get("value") or "—")[:1024]
+        embed.add_field(name=name, value=value, inline=bool(field.get("inline", False)))
+    footer = config.get("footer") or {}
+    if isinstance(footer, dict) and (footer.get("text") or footer.get("iconUrl")):
+        footer_kwargs = {"text": str(footer.get("text") or "")[:2048]}
+        icon = discord_asset_url(footer.get("iconUrl"))
+        if icon:
+            footer_kwargs["icon_url"] = icon
+        embed.set_footer(**footer_kwargs)
     image_url = discord_asset_url(config.get("imageUrl"))
     thumbnail_url = discord_asset_url(config.get("thumbnailUrl"))
     if image_url: embed.set_image(url=image_url)
     if thumbnail_url: embed.set_thumbnail(url=thumbnail_url)
+    if config.get("timestamp"):
+        embed.timestamp = datetime.now(timezone.utc)
     return embed
 
 
@@ -1055,7 +1084,22 @@ def build_panel_view(guild_id: int, config: dict[str, Any]) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     for item in config.get("buttons", [])[:25]:
         action = str(item.get("action", "send_message"))
-        button = discord.ui.Button(label=str(item.get("label", "زر"))[:80], style=parse_style(str(item.get("style", "primary"))), emoji=parse_emoji(str(item.get("emoji", ""))), custom_id=f"panel:{guild_id}:{item.get('id') or 'button'}")
+        style_name = str(item.get("style", "primary"))
+        if action == "open_url":
+            button = discord.ui.Button(
+                label=str(item.get("label", "فتح الرابط"))[:80],
+                style=discord.ButtonStyle.link,
+                emoji=parse_emoji(str(item.get("emoji", ""))),
+                url=str(item.get("url") or item.get("responseUrl") or "https://discord.com")[:512],
+            )
+        else:
+            button = discord.ui.Button(
+                label=str(item.get("label", "زر"))[:80],
+                style=parse_style(style_name),
+                emoji=parse_emoji(str(item.get("emoji", ""))),
+                custom_id=f"panel:{guild_id}:{item.get('id') or 'button'}",
+            )
+
         async def callback(interaction: discord.Interaction, selected_action=action, selected_item=item) -> None:
             if not interaction.guild or interaction.guild.id != guild_id:
                 await interaction.response.send_message("❌ هذا الزر ليس تابعاً لهذا السيرفر.", ephemeral=True); return
@@ -1066,19 +1110,25 @@ def build_panel_view(guild_id: int, config: dict[str, Any]) -> discord.ui.View:
             elif selected_action == "create_ticket":
                 await create_custom_ticket(interaction, config)
             else:
-                response_title = str(selected_item.get("responseTitle") or "")[:256]
-                response_message = str(selected_item.get("responseMessage") or selected_item.get("message") or "تم استلام طلبك.")[:2500]
-                response_embed = discord.Embed(description=response_message, colour=parse_color(str(config.get("color", "#5865F2"))))
-                if response_title:
-                    response_embed.title = response_title
-                response_image = str(selected_item.get("responseImageUrl") or "")
-                response_thumbnail = str(selected_item.get("responseThumbnailUrl") or "")
-                if response_image:
-                    response_embed.set_image(url=response_image)
-                if response_thumbnail:
-                    response_embed.set_thumbnail(url=response_thumbnail)
-                await interaction.response.send_message(embed=response_embed, ephemeral=True)
-        button.callback = callback
+                response = {
+                    "title": str(selected_item.get("responseTitle") or "")[:256],
+                    "description": str(selected_item.get("responseMessage") or selected_item.get("message") or "تم استلام طلبك.")[:4096],
+                    "color": selected_item.get("responseColor") or config.get("color", "#5865F2"),
+                    "imageUrl": selected_item.get("responseImageUrl") or "",
+                    "thumbnailUrl": selected_item.get("responseThumbnailUrl") or "",
+                    "fields": selected_item.get("responseFields") or [],
+                    "footer": selected_item.get("responseFooter") or {},
+                    "timestamp": bool(selected_item.get("responseTimestamp")),
+                }
+                content = str(selected_item.get("responseContent") or "")[:2000] or None
+                await interaction.response.send_message(
+                    content=content,
+                    embed=workflow_embed(response),
+                    ephemeral=True,
+                    allowed_mentions=ALLOWED_MENTIONS,
+                )
+        if action != "open_url":
+            button.callback = callback
         view.add_item(button)
     return view
 

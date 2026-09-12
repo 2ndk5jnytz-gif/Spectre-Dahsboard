@@ -1,0 +1,20 @@
+
+<div class="tab-title">📡 التنبيهات الاجتماعية</div>
+<div class="tab-desc">YouTube وTwitch وKick: عند وجود بث/منشور جديد يرسل Spectre Embed إلى القناة المحددة.</div>
+<div class="card">
+<div class="row">
+<div class="field"><label>المنصة</label><select id="social-platform"><option>YouTube</option><option>Twitch</option><option>Kick</option></select></div>
+<div class="field"><label>القناة الهدف</label><select id="social-channel">{% for c in guild['channels'] %}<option value="{{c['id']}}">#{{c['name']}}</option>{% endfor %}</select></div>
+</div>
+<div class="field"><label>رابط القناة/المصدر</label><input id="social-url" type="text" placeholder="https://youtube.com/..."></div>
+<div class="row"><div class="field"><label>منشن اختياري</label><input id="social-mention" type="text" placeholder="@everyone أو <@&ROLE_ID>"></div><div class="field"><label>لون Embed</label><input id="social-color" value="2ca77a"></div></div>
+<div class="field"><label>الرسالة</label><textarea id="social-message">📢 محتوى جديد من {platform}!</textarea></div>
+<button class="btn btn-gold" onclick="addSocial()">＋ إضافة المصدر</button>
+</div>
+<div class="card"><h3>المصادر الحالية</h3><table><thead><tr><th>المنصة</th><th>الرابط</th><th>القناة</th><th></th></tr></thead><tbody>
+{% for x in social_sources %}<tr><td>{{x['platform']}}</td><td class="truncate">{{x['url']}}</td><td><#{{x['channel_id']}}></td><td><button class="btn btn-danger" onclick="delSocial('{{x['url']|replace("'","\\'")}}')">حذف</button></td></tr>{% else %}<tr><td colspan="4" class="muted">لا توجد مصادر.</td></tr>{% endfor %}
+</tbody></table></div>
+<script>
+async function addSocial(){const r=await fetch(`/dashboard/${GUILD_ID}/social`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({platform:document.getElementById("social-platform").value,url:document.getElementById("social-url").value,channel_id:document.getElementById("social-channel").value,mention:document.getElementById("social-mention").value,color:document.getElementById("social-color").value,message:document.getElementById("social-message").value})});const x=await r.json();showToast(x.ok?"✅ تم حفظ المصدر":"❌ "+x.error,x.ok);if(x.ok)location.reload();}
+async function delSocial(url){const r=await fetch(`/dashboard/${GUILD_ID}/social`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});const x=await r.json();showToast(x.ok?"🗑️ تم":"❌ فشل",x.ok);if(x.ok)location.reload();}
+</script>
