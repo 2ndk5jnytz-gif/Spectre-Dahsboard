@@ -28,13 +28,34 @@ def prepare_dashboard() -> None:
     if DASHBOARD_BUNDLE.is_file():
         print("[Spectre] Preparing dashboard files...", flush=True)
         with zipfile.ZipFile(DASHBOARD_BUNDLE, "r") as bundle:
-            bundle.extractall(ROOT)
+            names = set(bundle.namelist())
+            # Older bundles contain app.py/static/templates at their root.
+            # Newer bundles may already contain a dashboard/ directory.
+            if "dashboard/app.py" in names:
+                bundle.extractall(ROOT)
+            elif "app.py" in names:
+                DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
+                for member in bundle.infolist():
+                    # Ignore archive cache files; they are never required at runtime.
+                    if member.filename.startswith("__pycache__/"):
+                        continue
+                    target = DASHBOARD_DIR / member.filename
+                    if member.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with bundle.open(member) as src, target.open("wb") as dst:
+                        shutil.copyfileobj(src, dst)
+            else:
+                raise RuntimeError("فشل تجهيز الداشبورد: dashboard_bundle.zip لا يحتوي dashboard/app.py أو app.py.")
         if not (DASHBOARD_DIR / "app.py").is_file():
-            raise RuntimeError("فشل تجهيز الداشبورد: dashboard/app.py غير موجود.")
+            raise RuntimeError("فشل تجهيز الداشبورد: dashboard/app.py غير موجود بعد فك الحزمة.")
         print("[Spectre] Dashboard files prepared.", flush=True)
         return
 
-    raise FileNotFoundError("لم أجد dashboard_bundle.zip أو dashboard/app.py.")
+    # If the dashboard package is genuinely absent, fail with a precise message
+    # instead of allowing a less useful ModuleNotFoundError later in the bot.
+    raise FileNotFoundError("لم أجد dashboard/app.py أو dashboard_bundle.zip.")
 
 
 def prepare_ffmpeg() -> None:
