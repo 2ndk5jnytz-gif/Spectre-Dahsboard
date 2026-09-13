@@ -1,17 +1,11 @@
-# نشر الداشبورد فقط على Render، بينما البوت الكامل يستمر بالعمل على استضافته
-# الأصلية (مثل Wispbyte) بدون أي تغيير — لأن Render يوفر HTTPS تلقائياً
-# ومجاناً (مطلوب لتسجيل الدخول عبر ديسكورد)، وهذا أسهل من إعداد شهادة SSL
-# يدوياً على استضافة بعنوان IP مباشر.
 services:
   - type: web
     name: spectre-dashboard
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 render_dashboard.py
+    startCommand: python dashboard/app.py
     envVars:
-      - key: DISCORD_TOKEN
-        sync: false
       - key: DISCORD_CLIENT_ID
         sync: false
       - key: DISCORD_CLIENT_SECRET
@@ -20,8 +14,11 @@ services:
         sync: false
       - key: DASHBOARD_REDIRECT_URI
         sync: false
-        # بعد أول نشر، انسخ رابط الخدمة العام (ينتهي بـ onrender.com) وحطّه
-        # هنا بصيغة: https://spectre-dashboard-xxxx.onrender.com/callback
-        # ثم أضف نفس الرابط بالضبط بصفحة OAuth2 → Redirects بديسكورد.
+      - key: DATABASE_URL
+        sync: false
+      - key: SPECTRE_BOT_API_URL
+        sync: false
+      - key: SPECTRE_BOT_API_SECRET
+        sync: false
       - key: PORT
         value: "10000"

@@ -1,5 +1,5 @@
-"""قاعدة بيانات SQLite لبوت ديسكورد العربي.
-ضع هذا الملف في نفس مجلد bot.py. لا تشغّله وحده.
+"""قاعدة بيانات Spectre. تستخدم PostgreSQL الدائم عند ضبط DATABASE_URL،
+وتعود إلى SQLite محلياً عند تشغيل نسخة تطوير بدون PostgreSQL.
 """
 
 from __future__ import annotations
@@ -11,121 +11,160 @@ from pathlib import Path
 from typing import Any
 
 DB_PATH = Path(__file__).with_name("bot_data.sqlite3")
-
-DEFAULT_SETTINGS: dict[str, Any] = {
-    "welcome_channel_id": None,
-    "level_up_mode": "channel",
-    "level_up_channel_id": None,
-    "level_up_message": "مبروك {user}! وصلت للفل **{level}**.{role}",
-    "xp_min": 15,
-    "xp_max": 25,
-    "xp_cooldown_seconds": 60,
-    "xp_event_json": "{}",
-    "level_up_image_url": "",
-    "level_up_thumbnail_url": "",
-    "level_ignored_role_ids_json": "[]",
-    "level_excluded_role_ids_json": "[]",
-    "level_remove_role_ids_json": "[]",
-    "level_remove_previous_roles": False,
-    "review_channel_id": None,
-    "apply_emoji": "🛠️",
-    "apply_style": "blurple",
-    "apply_image_url": "",
-    "ticket_category_id": None,
-    "welcome_enabled": True,
-    "welcome_config_json": "{}",
-    "tickets_enabled": True,
-    "levels_enabled": True,
-    "faq_enabled": True,
-    "prefix": "!",
-    "social_sources_json": "[]",
-    "adhkar_config_json": "{}",
-    "blocked_application_role_ids": "[]",
-    "blocked_ticket_role_ids": "[]",
-    "games_config_json": "{}",
-    "mod_log_channel_id": None,
-    "ticket_emoji": "🎫",
-    "ticket_label": "فتح تذكرة دعم",
-    "ticket_style": "success",
-    # ==================== نظام الحماية من التخريب (Anti-Nuke) ====================
-    "antinuke_enabled": False,
-    "antinuke_punishment": "kick",  # kick | ban | remove_roles | timeout
-    "antinuke_banned_words_json": "[]",  # كلمات ممنوعة بأسماء الرومات
-    "antinuke_dangerous_perms_json": json.dumps([
-        "administrator", "ban_members", "kick_members", "manage_guild",
-        "manage_roles", "manage_channels", "manage_webhooks", "mention_everyone",
-        "manage_messages", "moderate_members",
-    ]),
-    "antinuke_whitelist_json": "[]",  # آيدي أعضاء مستثناة (غير مالك السيرفر، مستثنى دائماً)
-    "antinuke_bot_whitelist_json": "[]",  # آيدي بوتات مسموح دخولها بدون طرد تلقائي
-    "antinuke_max_channel_delete": 3,
-    "antinuke_max_channel_create": 5,
-    "antinuke_max_kicks": 3,
-    "antinuke_max_bans": 3,
-    "antinuke_window_seconds": 10,
-    # ==================== فلتر روابط التصيّد (Anti-Phishing) ====================
-    "antiphishing_enabled": False,
-    "antiphishing_domains_json": "[]",  # نطاقات إضافية يضيفها الأدمن فوق القائمة الافتراضية المدمجة بالكود
-    "antiphishing_action": "delete",  # delete | timeout | kick | ban — ماذا يحصل لمرسل رابط التصيد
-
-    # ==================== الحماية من الغارات الجماعية (Anti-Raid) ====================
-    # ميزة مستوحاة من بوتات الحماية الشهيرة (Wick, Dyno, Vexera): تكشف عندما
-    # ينضم عدد كبير من الأعضاء خلال وقت قصير جداً (نمط "غارة" منظّمة عادة
-    # بحسابات وهمية/بوتات لإغراق السيرفر أو تحضير هجوم)، وتتدخل تلقائياً.
-    "antiraid_enabled": False,
-    "antiraid_max_joins": 10,          # كم عضو ينضم يُعتبر "غارة"
-    "antiraid_window_seconds": 20,      # خلال كم ثانية
-    "antiraid_action": "kick_new",      # kick_new | ban_new | lockdown_only — ماذا يحدث للمنضمين أثناء الغارة
-    "antiraid_lockdown_minutes": 10,    # مدة رفع مستوى التحقق (Verification Level) للحد الأقصى مؤقتاً
-
-    # ==================== الحماية من الحسابات الحديثة (Anti-Alt) ====================
-    # يمنع/يطرد الحسابات المُنشأة حديثاً جداً بديسكورد نفسه (وليس تاريخ انضمامها
-    # للسيرفر) — هذا يوقف أغلب الحسابات المزيفة (Alt accounts) التي تُصنع
-    # للتحايل على الحظر أو تنفيذ هجمات منظّمة (نفس فكرة ميزة "Account Age" الشهيرة
-    # ببوتات الحماية الكبرى).
-    "antialt_enabled": False,
-    "antialt_min_age_days": 7,
-    "antialt_action": "kick",  # kick | ban
-
-    # ==================== الرتب اللاصقة (Sticky Roles) ====================
-    # عند مغادرة عضو ثم عودته، تُعاد له تلقائياً كل رتبه القديمة. هذه ميزة
-    # أمنية مهمة أيضاً: تمنع عضواً مُعاقَباً (رتبة كتم/تقييد مؤقت من نشاط معين)
-    # من "الهروب" من عقوبته بمغادرة السيرفر والعودة إليه لتصفير رتبه.
-    "sticky_roles_enabled": False,
-
-    # ==================== حماية من سبام المنشن الجماعي ====================
-    # امتداد لنظام مكافحة السبام الأساسي: يراقب عدد المنشنات (منشن أعضاء أو
-    # رتب) داخل رسالة واحدة تحديداً — أسلوب هجوم شائع (منشن عشرات الأعضاء
-    # برسالة واحدة لإزعاجهم أو التشويش على القناة).
-    "antispam_mention_enabled": False,
-    "antispam_max_mentions": 6,
-    "antispam_action": "timeout",  # delete_only | timeout | kick
-
-    # ==================== لوحة النجوم (Starboard) ====================
-    # ميزة شهيرة (من بوتات مثل Starboard/MEE6/Carl-bot): أي رسالة تحصل على
-    # عدد كافٍ من تفاعل ⭐ (أو أي إيموجي تختاره) تُنشر تلقائياً بقناة مخصصة،
-    # كأرشيف لأفضل/أطرف الرسائل بالسيرفر.
-    "starboard_enabled": False,
-    "starboard_channel_id": None,
-    "starboard_threshold": 3,
-    "starboard_emoji": "⭐",
-}
+DATABASE_URL = str(__import__("os").getenv("DATABASE_URL") or "").strip()
 
 
-def _connect() -> sqlite3.Connection:
-    # timeout: تجعل sqlite3 تنتظر بدل رمي "database is locked" فوراً عند التعارض بين
-    # كتابة/قراءة متزامنة (مثل رسائل متعددة تصل لحظياً)، وبذلك لا يتوقف رد أزرار
-    # التذاكر/التقديم بسبب قفل قصير على قاعدة البيانات.
+class _PGConnection:
+    """Small compatibility layer: keeps the existing db.py API while using PostgreSQL."""
+    def __init__(self, url: str):
+        import psycopg
+        from psycopg.rows import dict_row
+        self._conn = psycopg.connect(url, row_factory=dict_row, connect_timeout=15)
+
+    def execute(self, sql: str, params=()):
+        return self._conn.execute(sql.replace("?", "%s"), params)
+
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._conn.__exit__(exc_type, exc, tb)
+
+
+def _connect():
+    if DATABASE_URL:
+        return _PGConnection(DATABASE_URL)
     connection = sqlite3.connect(DB_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout = 8000")
     return connection
 
 
+PG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS guild_settings (
+    guild_id BIGINT NOT NULL, setting_key TEXT NOT NULL, setting_value TEXT,
+    PRIMARY KEY (guild_id, setting_key)
+);
+CREATE TABLE IF NOT EXISTS bot_presence (
+    id BIGINT PRIMARY KEY CHECK (id = 1), messages_json TEXT NOT NULL,
+    interval_seconds BIGINT NOT NULL DEFAULT 60, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS user_levels (
+    guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, xp BIGINT NOT NULL DEFAULT 0,
+    level BIGINT NOT NULL DEFAULT 0, PRIMARY KEY (guild_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS level_roles (
+    guild_id BIGINT NOT NULL, level BIGINT NOT NULL, role_id BIGINT NOT NULL,
+    PRIMARY KEY (guild_id, level)
+);
+CREATE TABLE IF NOT EXISTS faqs (
+    id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, question TEXT NOT NULL,
+    answer TEXT NOT NULL, emoji TEXT NOT NULL DEFAULT '❓', style TEXT NOT NULL DEFAULT 'blurple'
+);
+CREATE TABLE IF NOT EXISTS workflows (
+    guild_id BIGINT NOT NULL, workflow_type TEXT NOT NULL, config_json TEXT NOT NULL,
+    enabled BIGINT NOT NULL DEFAULT 1, updated_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, workflow_type)
+);
+CREATE TABLE IF NOT EXISTS applications (
+    id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, applicant_id BIGINT NOT NULL,
+    age TEXT NOT NULL, reason TEXT NOT NULL, experience TEXT NOT NULL, position TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', reviewer_id BIGINT, review_reason TEXT,
+    review_message_id BIGINT, created_at TEXT NOT NULL, reviewed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS warnings (
+    id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL,
+    moderator_id BIGINT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS counting_channels (
+    guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL, current_count BIGINT NOT NULL DEFAULT 0,
+    invalid_attempts BIGINT NOT NULL DEFAULT 0, emoji TEXT NOT NULL DEFAULT '✅',
+    timeout_seconds BIGINT NOT NULL DEFAULT 60, enabled BIGINT NOT NULL DEFAULT 1,
+    PRIMARY KEY (guild_id, channel_id)
+);
+CREATE TABLE IF NOT EXISTS game_scores (
+    guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, game_id TEXT NOT NULL,
+    points BIGINT NOT NULL DEFAULT 0, wins BIGINT NOT NULL DEFAULT 0, updated_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, user_id, game_id)
+);
+CREATE TABLE IF NOT EXISTS panels (
+    guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL, message_id BIGINT NOT NULL,
+    config_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (guild_id, message_id)
+);
+CREATE TABLE IF NOT EXISTS reaction_roles (
+    guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL, message_id BIGINT NOT NULL,
+    emoji_key TEXT NOT NULL, role_id BIGINT NOT NULL, PRIMARY KEY (guild_id, message_id, emoji_key)
+);
+CREATE TABLE IF NOT EXISTS auto_responses (
+    id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, trigger_text TEXT NOT NULL,
+    response_text TEXT NOT NULL, match_type TEXT NOT NULL DEFAULT 'exact', enabled BIGINT NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS sticky_roles (
+    guild_id BIGINT NOT NULL, user_id BIGINT NOT NULL, role_ids_json TEXT NOT NULL,
+    saved_at TEXT NOT NULL, PRIMARY KEY (guild_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS starboard_messages (
+    guild_id BIGINT NOT NULL, original_message_id BIGINT NOT NULL,
+    starboard_message_id BIGINT NOT NULL, star_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (guild_id, original_message_id)
+);
+CREATE TABLE IF NOT EXISTS giveaways (
+    id BIGSERIAL PRIMARY KEY, guild_id BIGINT NOT NULL, channel_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL, prize TEXT NOT NULL, winners_count BIGINT NOT NULL DEFAULT 1,
+    host_id BIGINT NOT NULL, ends_at TEXT NOT NULL, ended BIGINT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_faqs_guild ON faqs (guild_id);
+CREATE INDEX IF NOT EXISTS idx_applications_guild_status ON applications (guild_id, status);
+CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings (guild_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_auto_responses_guild ON auto_responses (guild_id);
+CREATE INDEX IF NOT EXISTS idx_reaction_roles_guild_message ON reaction_roles (guild_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_user_levels_leaderboard ON user_levels (guild_id, level DESC, xp DESC);
+CREATE INDEX IF NOT EXISTS idx_game_scores_guild_game ON game_scores (guild_id, game_id, points DESC);
+CREATE INDEX IF NOT EXISTS idx_giveaways_pending ON giveaways (ended, ends_at);
+"""
+
+
+def _migrate_sqlite_to_postgres(pg) -> None:
+    """One-time best-effort migration of the local SQLite database, if present."""
+    if not DB_PATH.exists():
+        return
+    sqlite = sqlite3.connect(DB_PATH)
+    sqlite.row_factory = sqlite3.Row
+    tables = ["guild_settings","bot_presence","user_levels","level_roles","faqs","workflows",
+              "applications","warnings","counting_channels","game_scores","panels","reaction_roles",
+              "auto_responses","sticky_roles","starboard_messages","giveaways"]
+    try:
+        for table in tables:
+            try:
+                rows = sqlite.execute(f"SELECT * FROM {table}").fetchall()
+            except sqlite3.Error:
+                continue
+            if not rows:
+                continue
+            cols = list(rows[0].keys())
+            placeholders = ",".join(["%s"] * len(cols))
+            quoted = ",".join('"'+c+'"' for c in cols)
+            for row in rows:
+                pg.execute(f'INSERT INTO {table} ({quoted}) VALUES ({placeholders}) ON CONFLICT DO NOTHING', tuple(row[c] for c in cols))
+        # Keep BIGSERIAL sequences ahead of migrated IDs.
+        for table in ("faqs","applications","warnings","auto_responses","giveaways"):
+            pg.execute(f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE((SELECT MAX(id) FROM {table}), 1), true)")
+    finally:
+        sqlite.close()
+
+
 def init_db() -> None:
+    if DATABASE_URL:
+        import psycopg
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as connection:
+            from psycopg.rows import dict_row
+            connection.row_factory = dict_row
+            connection.execute(PG_SCHEMA)
+            _migrate_sqlite_to_postgres(connection)
+        print("[Spectre] Persistent PostgreSQL database is active.", flush=True)
+        return
     with _connect() as connection:
-        # WAL يسمح بالقراءة أثناء الكتابة بدل قفل كامل للملف، فتقل جداً حالات
-        # التأخر التي تسبب رسالة ديسكورد "the application didn't respond in time".
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA synchronous=NORMAL")
         connection.executescript(
@@ -299,7 +338,6 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_giveaways_pending ON giveaways (ended, ends_at);
             """
         )
-
 
 def set_presence_config(messages: list[str], interval_seconds: int) -> None:
     cleaned = [str(message).strip()[:128] for message in messages if str(message).strip()]
@@ -700,10 +738,11 @@ def get_reaction_roles_for_message(guild_id: int, message_id: int) -> list[dict[
 def add_auto_response(guild_id: int, trigger_text: str, response_text: str, match_type: str = "exact") -> int:
     with _connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO auto_responses (guild_id, trigger_text, response_text, match_type, enabled) VALUES (?, ?, ?, ?, 1)",
+            "INSERT INTO auto_responses (guild_id, trigger_text, response_text, match_type, enabled) VALUES (?, ?, ?, ?, 1) RETURNING id",
             (guild_id, trigger_text.strip(), response_text.strip(), match_type),
         )
-    return int(cursor.lastrowid)
+        row = cursor.fetchone()
+    return int(row["id"])
 
 
 def remove_auto_response(guild_id: int, response_id: int) -> bool:
@@ -828,10 +867,11 @@ def remove_counting_channel(guild_id: int, channel_id: int) -> bool:
 def add_faq(guild_id: int, question: str, answer: str, emoji: str, style: str) -> int:
     with _connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO faqs (guild_id, question, answer, emoji, style) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO faqs (guild_id, question, answer, emoji, style) VALUES (?, ?, ?, ?, ?) RETURNING id",
             (guild_id, question, answer, emoji or "❓", style or "blurple"),
         )
-    return int(cursor.lastrowid)
+        row = cursor.fetchone()
+    return int(row["id"])
 
 
 def get_faqs(guild_id: int) -> list[dict[str, Any]]:
@@ -865,11 +905,12 @@ def create_application(guild_id: int, applicant_id: int, age: str, reason: str, 
         cursor = connection.execute(
             """
             INSERT INTO applications (guild_id, applicant_id, age, reason, experience, position, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
             """,
             (guild_id, applicant_id, age, reason, experience, position, now),
         )
-    return int(cursor.lastrowid)
+        row = cursor.fetchone()
+    return int(row["id"])
 
 
 def set_application_message(application_id: int, message_id: int) -> None:
@@ -911,10 +952,11 @@ def add_warning(guild_id: int, user_id: int, moderator_id: int, reason: str) -> 
     now = datetime.now(timezone.utc).isoformat()
     with _connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO warnings (guild_id, user_id, moderator_id, reason, created_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO warnings (guild_id, user_id, moderator_id, reason, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id",
             (guild_id, user_id, moderator_id, reason, now),
         )
-    return int(cursor.lastrowid)
+        row = cursor.fetchone()
+    return int(row["id"])
 
 
 def get_warnings(guild_id: int, user_id: int) -> list[dict[str, Any]]:
@@ -993,10 +1035,11 @@ def save_starboard_entry(guild_id: int, original_message_id: int, starboard_mess
 def create_giveaway(guild_id: int, channel_id: int, message_id: int, prize: str, winners_count: int, host_id: int, ends_at: str) -> int:
     with _connect() as connection:
         cursor = connection.execute(
-            "INSERT INTO giveaways (guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at, ended) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+            "INSERT INTO giveaways (guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at, ended) VALUES (?, ?, ?, ?, ?, ?, ?, 0) RETURNING id",
             (guild_id, channel_id, message_id, prize, winners_count, host_id, ends_at),
         )
-    return int(cursor.lastrowid)
+        row = cursor.fetchone()
+    return int(row["id"])
 
 
 def get_pending_giveaways(before_iso: str) -> list[dict[str, Any]]:

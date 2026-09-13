@@ -19,6 +19,7 @@ import asyncio
 import secrets
 import os
 import sys
+import requests
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import db  # noqa: E402
-import bot_actions  # noqa: E402
 
 load_dotenv(ROOT / ".env")
 
@@ -56,16 +56,94 @@ MANAGE_GUILD = 0x20
 
 db.init_db()
 
-_bot_instance: Any = None
-_bot_loop: asyncio.AbstractEventLoop | None = None
+BOT_API_URL = os.getenv("SPECTRE_BOT_API_URL", "").strip().rstrip("/")
+BOT_API_SECRET = os.getenv("SPECTRE_BOT_API_SECRET", "").strip()
+
+
+class _RemoteBotActions:
+    """واجهة خفيفة تتواصل مع البوت الموجود على Wispbyte عبر API HTTPS."""
+
+    @staticmethod
+    async def _request(method: str, path: str, *, json=None, files=None, timeout=25):
+        if not BOT_API_URL:
+            raise RuntimeError("لم يتم ضبط SPECTRE_BOT_API_URL في Render.")
+        headers = {"X-Api-Key": BOT_API_SECRET} if BOT_API_SECRET else {}
+        url = f"{BOT_API_URL}{path}"
+        response = requests.request(method, url, json=json, files=files, headers=headers, timeout=timeout)
+        try:
+            data = response.json()
+        except ValueError:
+            data = {"ok": False, "error": response.text[:500]}
+        if response.status_code >= 400 or data.get("ok") is False:
+            raise RuntimeError(str(data.get("error") or f"Bot API HTTP {response.status_code}"))
+        return data
+
+    @classmethod
+    async def list_guilds(cls, _bot=None):
+        return (await cls._request("GET", "/api/guilds")).get("guilds", [])
+
+    @classmethod
+    async def guild_overview(cls, _bot, guild_id):
+        return await cls._request("GET", f"/api/guilds/{guild_id}/overview")
+
+    @classmethod
+    async def find_members(cls, _bot, guild_id, query):
+        return (await cls._request("GET", f"/api/guilds/{guild_id}/members", json={"q": query})).get("members", [])
+
+    @classmethod
+    async def _action(cls, endpoint, guild_id, payload):
+        return await cls._request("POST", f"/api/guilds/{guild_id}/{endpoint}", json=payload)
+
+    @classmethod
+    async def publish_ticket_panel(cls, _bot, guild_id, payload):
+        return await cls._action("ticket-panel", guild_id, payload)
+
+    @classmethod
+    async def publish_apply_panel(cls, _bot, guild_id, payload):
+        return await cls._action("apply-panel", guild_id, payload)
+
+    @classmethod
+    async def send_embed(cls, _bot, guild_id, payload):
+        return await cls._action("embed", guild_id, payload)
+
+    @classmethod
+    async def create_reaction_role_message(cls, _bot, guild_id, payload):
+        return await cls._action("reaction-role-message", guild_id, payload)
+
+    @classmethod
+    async def link_reaction_role(cls, _bot, guild_id, payload):
+        return await cls._action("reaction-role-link", guild_id, payload)
+
+    @classmethod
+    async def adjust_xp(cls, _bot, guild_id, payload):
+        return await cls._action("xp-adjust", guild_id, payload)
+
+    @classmethod
+    async def transfer_xp(cls, _bot, guild_id, payload):
+        return await cls._action("xp-transfer", guild_id, payload)
+
+    @classmethod
+    async def mod_action(cls, _bot, guild_id, payload):
+        return await cls._action("mod-action", guild_id, payload)
+
+    @classmethod
+    async def create_giveaway(cls, _bot, guild_id, payload):
+        return await cls._action("giveaway", guild_id, payload)
+
+    @classmethod
+    async def upload_dashboard_image(cls, _bot, guild_id, filename, content_type, data):
+        files = {"file": (filename, data, content_type or "application/octet-stream")}
+        return await cls._request("POST", f"/api/guilds/{guild_id}/upload-image", files=files)
+
+
+bot_actions = _RemoteBotActions()
+_bot_instance = bot_actions
+_bot_loop = True
 
 
 def call_bot(coro):
-    """يرسل Coroutine لحلقة أحداث البوت من خيط Flask المنفصل، وينتظر النتيجة."""
-    if _bot_instance is None or _bot_loop is None:
-        raise RuntimeError("الداشبورد ما زالت غير مربوطة بالبوت — شغّلها عبر bot.py وليس مباشرة.")
-    future = asyncio.run_coroutine_threadsafe(coro, _bot_loop)
-    return future.result(timeout=25)
+    """ينفذ استدعاء API غير متزامن بطريقة بسيطة داخل Flask."""
+    return asyncio.run(coro)
 
 
 def login_required(view):
@@ -87,7 +165,12 @@ def index():
 
 @app.route("/healthz")
 def healthz():
-    return jsonify({"status": "ok", "bot_connected": _bot_instance is not None and _bot_instance.is_ready()})
+    
+    try:
+        data = asyncio.run(_RemoteBotActions._request("GET", "/healthz", timeout=8))
+        return jsonify({"status": "ok", "bot_connected": bool(data.get("discord_ready", data.get("status") == "ok"))})
+    except Exception as error:
+        return jsonify({"status": "ok", "bot_connected": False, "bot_api_error": str(error)})
 
 
 @app.route("/login")
@@ -180,7 +263,7 @@ def guild_picker():
 
 
 async def _list_guilds_coro():
-    return bot_actions.list_guilds(_bot_instance)
+    return await _RemoteBotActions.list_guilds(_bot_instance)
 
 
 def guild_or_403(guild_id: str):
@@ -193,7 +276,7 @@ def guild_or_403(guild_id: str):
 
 
 async def _guild_overview_coro(guild_id: int):
-    return bot_actions.guild_overview(_bot_instance, guild_id)
+    return await _RemoteBotActions.guild_overview(_bot_instance, guild_id)
 
 
 TABS = [
@@ -475,20 +558,48 @@ def save_json_config(guild_id: str, config_name: str):
     return jsonify({"ok": True})
 
 
+def _normalize_social_source(platform: str, url: str, channel_id: int, mention: str = "", message: str = "📢 {platform}: {title}", color: int = 0x2CA77A):
+    from urllib.parse import urlparse
+    platform = str(platform).strip().lower()
+    url = str(url).strip().rstrip("/")
+    hosts = {
+        "youtube": ("youtube.com", "youtu.be"),
+        "twitch": ("twitch.tv",),
+        "kick": ("kick.com",),
+    }
+    if platform not in hosts:
+        raise ValueError("المنصة يجب أن تكون youtube أو twitch أو kick")
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    if not url.startswith(("https://", "http://")) or not any(host == h or host.endswith("." + h) for h in hosts[platform]):
+        raise ValueError("الرابط لا يطابق المنصة المحددة")
+    if not channel_id:
+        raise ValueError("يجب تحديد قناة Discord للإشعار")
+    parts = [x for x in parsed.path.split("/") if x]
+    if platform == "youtube" and not (parts and ((parts[0] == "channel" and len(parts) == 2) or (parts[0] in {"c", "user"} and len(parts) == 2) or (parts[0].startswith("@") and len(parts) == 1))):
+        raise ValueError("استخدم رابط قناة YouTube صالح")
+    if platform in {"twitch", "kick"} and len(parts) != 1:
+        raise ValueError("استخدم رابط قناة صالح وليس رابط بث أو مقطع")
+    clean_message = (message or "📢 {platform}: {title}").strip()[:2500] or "📢 {platform}: {title}"
+    if "@everyone" in mention or "@here" in mention:
+        raise ValueError("منشن everyone وhere غير مسموح بهما")
+    from datetime import datetime, timezone
+    return {"platform": platform, "url": url, "channel_id": int(channel_id), "mention": str(mention).strip()[:300], "message": clean_message, "color": max(0, min(int(color), 0xFFFFFF)), "enabled": True, "last_event_id": "", "last_state": "offline", "updated_at": datetime.now(timezone.utc).isoformat()}
+
+
 @app.route("/dashboard/<guild_id>/social", methods=["POST"])
 @login_required
 def add_social(guild_id: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
-    import social_notifications
     payload = request.get_json(force=True) or {}
     try:
-        source = social_notifications.normalize_source(
+        source = _normalize_social_source(
             payload.get("platform", ""),
             payload.get("url", ""),
             int(payload.get("channel_id", 0)),
             payload.get("mention", ""),
-            payload.get("message", social_notifications.DEFAULT_MESSAGE),
+            payload.get("message", "📢 {platform}: {title}"),
             int(str(payload.get("color", "2ca77a")).lstrip("#"), 16),
         )
     except (TypeError, ValueError) as e:
@@ -519,12 +630,8 @@ def adhkar_now(guild_id: str):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
     category = (request.get_json(force=True) or {}).get("category", "morning")
     try:
-        from spectre_bot_latest import send_adhkar_embed
-        guild = _bot_instance.get_guild(int(guild_id))
-        if guild is None:
-            raise ValueError("السيرفر غير متصل بالبوت")
-        result = call_bot(send_adhkar_embed(guild, category, force=True))
-        return jsonify({"ok": bool(result)})
+        result = call_bot(_RemoteBotActions._action("adhkar-now", int(guild_id), {"category": category}))
+        return jsonify({"ok": bool(result.get("ok", True)), **result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -534,23 +641,12 @@ def adhkar_now(guild_id: str):
 def quran_action(guild_id: str, action_name: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
-    gid = int(guild_id)
-    guild = _bot_instance.get_guild(gid)
-    if guild is None:
-        return jsonify({"ok": False, "error": "السيرفر غير متصل بالبوت"}), 400
     payload = request.get_json(force=True) or {}
     try:
-        from spectre_bot_latest import radio_manager
-        if action_name == "stop":
-            call_bot(radio_manager.stop(guild))
-            return jsonify({"ok": True, "status": "stopped"})
-        if action_name == "start":
-            channel = guild.get_channel(int(payload.get("channel_id", 0)))
-            if not channel or not hasattr(channel, "connect"):
-                return jsonify({"ok": False, "error": "اختر قناة صوتية صحيحة."}), 400
-            call_bot(radio_manager.start(guild, channel, os.getenv("QURAN_RADIO_STREAM_URL")))
-            return jsonify({"ok": True, "status": "playing", "channel": channel.name})
-        return jsonify({"ok": False, "error": "إجراء غير معروف"}), 400
+        if action_name not in {"stop", "start"}:
+            return jsonify({"ok": False, "error": "إجراء غير معروف"}), 400
+        result = call_bot(_RemoteBotActions._action(f"quran/{action_name}", int(guild_id), payload))
+        return jsonify({"ok": True, **result})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -611,9 +707,7 @@ def save_presence_dashboard(guild_id: str):
     interval = max(15, min(86400, int(p.get("interval_seconds", 60))))
     db.set_presence_config(messages, interval)
     try:
-        from spectre_bot_latest import rotate_presence, apply_next_presence
-        rotate_presence.change_interval(seconds=interval)
-        call_bot(apply_next_presence())
+        call_bot(_RemoteBotActions._action("presence", int(guild_id), {"messages": messages, "interval_seconds": interval}))
     except Exception:
         pass
     return jsonify({"ok": True})
@@ -682,19 +776,15 @@ def search_members(guild_id: str):
 
 
 async def _find_members_coro(guild_id: int, query: str):
-    return bot_actions.find_members(_bot_instance, guild_id, query)
+    return await _RemoteBotActions.find_members(_bot_instance, guild_id, query)
 
 
-def run_embedded(bot_instance: Any, port: int) -> None:
-    """تُستدعى من bot.py لتشغيل الداشبورد بخيط منفصل داخل نفس العملية."""
-    global _bot_instance, _bot_loop
-    _bot_instance = bot_instance
-    _bot_loop = bot_instance.loop
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+def run_embedded(bot_instance: Any = None, port: int = 10000) -> None:
+    """تشغيل لوحة التحكم وحدها على Render."""
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=False)
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "5000"))
-    print("⚠️ تشغيل الداشبورد بشكل منفصل بدون بوت مربوط — الإجراءات الحية لن تعمل.")
-    print("للتشغيل الصحيح: شغّل bot.py، وهو يشغّل الداشبورد تلقائياً بخيط مدمج.")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "10000"))
+    print("[Spectre Dashboard] Standalone dashboard starting", flush=True)
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=False)
