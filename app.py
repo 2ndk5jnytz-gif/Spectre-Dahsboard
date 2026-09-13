@@ -61,15 +61,12 @@ BOT_API_SECRET = os.getenv("SPECTRE_BOT_API_SECRET", "").strip()
 
 
 class _RemoteBotActions:
-    """واجهة خفيفة تتواصل مع البوت الموجود على Wispbyte عبر API HTTPS."""
-
     @staticmethod
-    async def _request(method: str, path: str, *, json=None, files=None, timeout=25):
+    def request(method: str, path: str, *, json=None, files=None, timeout=25):
         if not BOT_API_URL:
             raise RuntimeError("لم يتم ضبط SPECTRE_BOT_API_URL في Render.")
         headers = {"X-Api-Key": BOT_API_SECRET} if BOT_API_SECRET else {}
-        url = f"{BOT_API_URL}{path}"
-        response = requests.request(method, url, json=json, files=files, headers=headers, timeout=timeout)
+        response = requests.request(method, f"{BOT_API_URL}{path}", json=json, files=files, headers=headers, timeout=timeout)
         try:
             data = response.json()
         except ValueError:
@@ -79,71 +76,32 @@ class _RemoteBotActions:
         return data
 
     @classmethod
-    async def list_guilds(cls, _bot=None):
-        return (await cls._request("GET", "/api/guilds")).get("guilds", [])
+    def list_guilds(cls):
+        return cls.request("GET", "/api/guilds").get("guilds", [])
 
     @classmethod
-    async def guild_overview(cls, _bot, guild_id):
-        return await cls._request("GET", f"/api/guilds/{guild_id}/overview")
+    def guild_overview(cls, guild_id):
+        return cls.request("GET", f"/api/guilds/{guild_id}/overview")
 
     @classmethod
-    async def find_members(cls, _bot, guild_id, query):
-        return (await cls._request("GET", f"/api/guilds/{guild_id}/members", json={"q": query})).get("members", [])
+    def find_members(cls, guild_id, query):
+        return cls.request("GET", f"/api/guilds/{guild_id}/members", json={"q": query}).get("members", [])
 
     @classmethod
-    async def _action(cls, endpoint, guild_id, payload):
-        return await cls._request("POST", f"/api/guilds/{guild_id}/{endpoint}", json=payload)
+    def action(cls, endpoint, guild_id, payload):
+        return cls.request("POST", f"/api/guilds/{guild_id}/{endpoint}", json=payload)
 
     @classmethod
-    async def publish_ticket_panel(cls, _bot, guild_id, payload):
-        return await cls._action("ticket-panel", guild_id, payload)
-
-    @classmethod
-    async def publish_apply_panel(cls, _bot, guild_id, payload):
-        return await cls._action("apply-panel", guild_id, payload)
-
-    @classmethod
-    async def send_embed(cls, _bot, guild_id, payload):
-        return await cls._action("embed", guild_id, payload)
-
-    @classmethod
-    async def create_reaction_role_message(cls, _bot, guild_id, payload):
-        return await cls._action("reaction-role-message", guild_id, payload)
-
-    @classmethod
-    async def link_reaction_role(cls, _bot, guild_id, payload):
-        return await cls._action("reaction-role-link", guild_id, payload)
-
-    @classmethod
-    async def adjust_xp(cls, _bot, guild_id, payload):
-        return await cls._action("xp-adjust", guild_id, payload)
-
-    @classmethod
-    async def transfer_xp(cls, _bot, guild_id, payload):
-        return await cls._action("xp-transfer", guild_id, payload)
-
-    @classmethod
-    async def mod_action(cls, _bot, guild_id, payload):
-        return await cls._action("mod-action", guild_id, payload)
-
-    @classmethod
-    async def create_giveaway(cls, _bot, guild_id, payload):
-        return await cls._action("giveaway", guild_id, payload)
-
-    @classmethod
-    async def upload_dashboard_image(cls, _bot, guild_id, filename, content_type, data):
+    def upload_dashboard_image(cls, guild_id, filename, content_type, data):
         files = {"file": (filename, data, content_type or "application/octet-stream")}
-        return await cls._request("POST", f"/api/guilds/{guild_id}/upload-image", files=files)
+        return cls.request("POST", f"/api/guilds/{guild_id}/upload-image", files=files)
 
 
-bot_actions = _RemoteBotActions()
-_bot_instance = bot_actions
-_bot_loop = True
+def call_bot(value):
+    return value
 
 
-def call_bot(coro):
-    """ينفذ استدعاء API غير متزامن بطريقة بسيطة داخل Flask."""
-    return asyncio.run(coro)
+_bot_instance = _RemoteBotActions()
 
 
 def login_required(view):
@@ -165,12 +123,7 @@ def index():
 
 @app.route("/healthz")
 def healthz():
-    
-    try:
-        data = asyncio.run(_RemoteBotActions._request("GET", "/healthz", timeout=8))
-        return jsonify({"status": "ok", "bot_connected": bool(data.get("discord_ready", data.get("status") == "ok"))})
-    except Exception as error:
-        return jsonify({"status": "ok", "bot_connected": False, "bot_api_error": str(error)})
+    return jsonify({"status": "ok", "bot_connected": _bot_instance is not None and _bot_instance.is_ready()})
 
 
 @app.route("/login")
@@ -252,7 +205,7 @@ def logout():
 @login_required
 def guild_picker():
     try:
-        bot_guilds = call_bot(_list_guilds_coro())
+        bot_guilds = _RemoteBotActions.list_guilds()
         api_error = None
     except Exception as error:
         bot_guilds = []
@@ -262,21 +215,15 @@ def guild_picker():
     return render_template("guild_picker.html", guilds=guilds, api_error=api_error)
 
 
-async def _list_guilds_coro():
-    return await _RemoteBotActions.list_guilds(_bot_instance)
-
 
 def guild_or_403(guild_id: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return None
     try:
-        return call_bot(_guild_overview_coro(int(guild_id)))
+        return _RemoteBotActions.guild_overview(int(guild_id))
     except Exception:
         return None
 
-
-async def _guild_overview_coro(guild_id: int):
-    return await _RemoteBotActions.guild_overview(_bot_instance, guild_id)
 
 
 TABS = [
@@ -558,48 +505,20 @@ def save_json_config(guild_id: str, config_name: str):
     return jsonify({"ok": True})
 
 
-def _normalize_social_source(platform: str, url: str, channel_id: int, mention: str = "", message: str = "📢 {platform}: {title}", color: int = 0x2CA77A):
-    from urllib.parse import urlparse
-    platform = str(platform).strip().lower()
-    url = str(url).strip().rstrip("/")
-    hosts = {
-        "youtube": ("youtube.com", "youtu.be"),
-        "twitch": ("twitch.tv",),
-        "kick": ("kick.com",),
-    }
-    if platform not in hosts:
-        raise ValueError("المنصة يجب أن تكون youtube أو twitch أو kick")
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").lower().removeprefix("www.")
-    if not url.startswith(("https://", "http://")) or not any(host == h or host.endswith("." + h) for h in hosts[platform]):
-        raise ValueError("الرابط لا يطابق المنصة المحددة")
-    if not channel_id:
-        raise ValueError("يجب تحديد قناة Discord للإشعار")
-    parts = [x for x in parsed.path.split("/") if x]
-    if platform == "youtube" and not (parts and ((parts[0] == "channel" and len(parts) == 2) or (parts[0] in {"c", "user"} and len(parts) == 2) or (parts[0].startswith("@") and len(parts) == 1))):
-        raise ValueError("استخدم رابط قناة YouTube صالح")
-    if platform in {"twitch", "kick"} and len(parts) != 1:
-        raise ValueError("استخدم رابط قناة صالح وليس رابط بث أو مقطع")
-    clean_message = (message or "📢 {platform}: {title}").strip()[:2500] or "📢 {platform}: {title}"
-    if "@everyone" in mention or "@here" in mention:
-        raise ValueError("منشن everyone وhere غير مسموح بهما")
-    from datetime import datetime, timezone
-    return {"platform": platform, "url": url, "channel_id": int(channel_id), "mention": str(mention).strip()[:300], "message": clean_message, "color": max(0, min(int(color), 0xFFFFFF)), "enabled": True, "last_event_id": "", "last_state": "offline", "updated_at": datetime.now(timezone.utc).isoformat()}
-
-
 @app.route("/dashboard/<guild_id>/social", methods=["POST"])
 @login_required
 def add_social(guild_id: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    import social_notifications
     payload = request.get_json(force=True) or {}
     try:
-        source = _normalize_social_source(
+        source = social_notifications.normalize_source(
             payload.get("platform", ""),
             payload.get("url", ""),
             int(payload.get("channel_id", 0)),
             payload.get("mention", ""),
-            payload.get("message", "📢 {platform}: {title}"),
+            payload.get("message", social_notifications.DEFAULT_MESSAGE),
             int(str(payload.get("color", "2ca77a")).lstrip("#"), 16),
         )
     except (TypeError, ValueError) as e:
@@ -630,8 +549,8 @@ def adhkar_now(guild_id: str):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
     category = (request.get_json(force=True) or {}).get("category", "morning")
     try:
-        result = call_bot(_RemoteBotActions._action("adhkar-now", int(guild_id), {"category": category}))
-        return jsonify({"ok": bool(result.get("ok", True)), **result})
+        result = _RemoteBotActions.action("adhkar-now", int(guild_id), {"category": category})
+        return jsonify(result)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -641,12 +560,12 @@ def adhkar_now(guild_id: str):
 def quran_action(guild_id: str, action_name: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
+    gid = int(guild_id)
     payload = request.get_json(force=True) or {}
+    if action_name not in {"start", "stop"}:
+        return jsonify({"ok": False, "error": "إجراء غير معروف"}), 400
     try:
-        if action_name not in {"stop", "start"}:
-            return jsonify({"ok": False, "error": "إجراء غير معروف"}), 400
-        result = call_bot(_RemoteBotActions._action(f"quran/{action_name}", int(guild_id), payload))
-        return jsonify({"ok": True, **result})
+        return jsonify(_RemoteBotActions.action(f"quran-{action_name}", gid, payload))
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -707,22 +626,22 @@ def save_presence_dashboard(guild_id: str):
     interval = max(15, min(86400, int(p.get("interval_seconds", 60))))
     db.set_presence_config(messages, interval)
     try:
-        call_bot(_RemoteBotActions._action("presence", int(guild_id), {"messages": messages, "interval_seconds": interval}))
-    except Exception:
-        pass
+        _RemoteBotActions.action("presence", int(guild_id), {"messages": messages, "interval_seconds": interval})
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 502
     return jsonify({"ok": True})
 
 
-_ACTION_COROUTINES = {
-    "ticket-panel": bot_actions.publish_ticket_panel,
-    "apply-panel": bot_actions.publish_apply_panel,
-    "embed": bot_actions.send_embed,
-    "reaction-role-message": bot_actions.create_reaction_role_message,
-    "reaction-role-link": bot_actions.link_reaction_role,
-    "xp-adjust": bot_actions.adjust_xp,
-    "xp-transfer": bot_actions.transfer_xp,
-    "mod-action": bot_actions.mod_action,
-    "giveaway": bot_actions.create_giveaway,
+_ACTION_ENDPOINTS = {
+    "ticket-panel": "ticket-panel",
+    "apply-panel": "apply-panel",
+    "embed": "embed",
+    "reaction-role-message": "reaction-role-message",
+    "reaction-role-link": "reaction-role-link",
+    "xp-adjust": "xp-adjust",
+    "xp-transfer": "xp-transfer",
+    "mod-action": "mod-action",
+    "giveaway": "giveaway",
 }
 
 
@@ -737,7 +656,7 @@ def upload_image(guild_id: str):
         return jsonify({"ok": False, "error": "اختر صورة أولاً."}), 400
     data = uploaded.read()
     try:
-        result = call_bot(bot_actions.upload_dashboard_image(_bot_instance, int(guild_id), uploaded.filename, uploaded.mimetype or "", data))
+        result = _RemoteBotActions.upload_dashboard_image(int(guild_id), uploaded.filename, uploaded.mimetype or "", data)
         return jsonify({"ok": True, **result})
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
@@ -749,12 +668,12 @@ def upload_image(guild_id: str):
 def proxy_action(guild_id: str, action_name: str):
     if guild_id not in session.get("manageable_guild_ids", []):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
-    action_func = _ACTION_COROUTINES.get(action_name)
+    action_func = _ACTION_ENDPOINTS.get(action_name)
     if action_func is None:
         return jsonify({"ok": False, "error": "إجراء غير معروف"}), 404
     payload = request.get_json(force=True)
     try:
-        result = call_bot(action_func(_bot_instance, int(guild_id), payload))
+        result = _RemoteBotActions.action(action_func, int(guild_id), payload)
         return jsonify({"ok": True, **result})
     except ValueError as error:
         return jsonify({"ok": False, "error": str(error)}), 400
@@ -769,22 +688,14 @@ def search_members(guild_id: str):
         return jsonify({"ok": False, "error": "غير مصرّح"}), 403
     query = request.args.get("q", "")
     try:
-        members = call_bot(_find_members_coro(int(guild_id), query))
+        members = _RemoteBotActions.find_members(int(guild_id), query)
         return jsonify({"ok": True, "members": members})
     except Exception as error:
         return jsonify({"ok": False, "error": str(error)}), 500
 
 
-async def _find_members_coro(guild_id: int, query: str):
-    return await _RemoteBotActions.find_members(_bot_instance, guild_id, query)
-
-
-def run_embedded(bot_instance: Any = None, port: int = 10000) -> None:
-    """تشغيل لوحة التحكم وحدها على Render."""
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=False)
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT") or os.getenv("DASHBOARD_PORT", "10000"))
-    print("[Spectre Dashboard] Standalone dashboard starting", flush=True)
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False, threaded=False)

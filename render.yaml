@@ -2,23 +2,6 @@ services:
   - type: web
     name: spectre-dashboard
     runtime: python
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python dashboard/app.py
-    envVars:
-      - key: DISCORD_CLIENT_ID
-        sync: false
-      - key: DISCORD_CLIENT_SECRET
-        sync: false
-      - key: DASHBOARD_SECRET_KEY
-        sync: false
-      - key: DASHBOARD_REDIRECT_URI
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: SPECTRE_BOT_API_URL
-        sync: false
-      - key: SPECTRE_BOT_API_SECRET
-        sync: false
-      - key: PORT
-        value: "10000"
+    autoDeploy: true
